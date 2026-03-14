@@ -2,70 +2,92 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Natu - Gestión de Ventas</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Natu - Gestión de Stock y Ventas</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; margin: 20px; background: #f0f2f5; color: #333; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        h1, h2 { color: #2e7d32; }
-        input, select, button { padding: 10px; margin: 5px 0; border-radius: 6px; border: 1px solid #ccc; }
-        button { cursor: pointer; background: #4caf50; color: white; border: none; font-weight: bold; }
-        button:hover { background: #45a049; }
-        .btn-print { background: #2196f3; }
-        .btn-del { background: #f44336; }
-        table { width: 100%; border-collapse: collapse; background: white; }
-        th, td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
-        th { background: #f8f9fa; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 20px; background: #fdfaf5; color: #4a4a4a; }
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); margin-bottom: 25px; border-left: 5px solid #7ea04d; }
+        .low-stock { color: #e74c3c; font-weight: bold; }
+        .unit-badge { font-size: 10px; background: #eee; padding: 2px 5px; border-radius: 4px; }
+        h1, h2 { color: #5c7a33; margin-top: 0; }
+        input, button, select { padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; font-size: 16px; }
+        button { cursor: pointer; background: #7ea04d; color: white; border: none; font-weight: 600; width: 100%; max-width: 250px; }
+        button:hover { background: #6a8841; }
+        .btn-blue { background: #4a90e2; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h1>🌿 Natu - Panel de Control</h1>
-        <h3>Actualizar Catálogo</h3>
-        <form id="form_catalogo">
-            <input type="text" name="nombre" list="lista_productos_cat" placeholder="Producto" required>
-            <datalist id="lista_productos_cat">
-                {% for p in productos %}<option value="{{p[1]}}">{% endfor %}
-            </datalist>
-            <input type="number" step="0.01" name="precio_kg" placeholder="Precio x KG" required>
-            <button type="submit">Guardar / Actualizar</button>
-        </form>
+        <h1>🌿 Natu - Inventario</h1>
+        <div class="grid">
+            <div>
+                <h3>Nuevo Producto / Precio</h3>
+                <form id="form_catalogo">
+                    <input type="text" name="nombre" placeholder="Nombre (Nuez, Mermelada...)" required><br>
+                    <input type="number" step="0.01" name="precio" placeholder="Precio ($)" required>
+                    <select name="es_unidad">
+                        <option value="false">Venta por Peso (Precio x KG)</option>
+                        <option value="true">Venta por Unidad (Precio Unitario)</option>
+                    </select><br>
+                    <input type="number" step="0.1" name="stock" placeholder="Stock Inicial" required>
+                    <input type="number" step="0.1" name="stock_min" placeholder="Stock Mínimo (Alerta)" required>
+                    <button type="submit">Guardar en Catálogo</button>
+                </form>
+            </div>
+            <div>
+                <h3>Stock Actual</h3>
+                <div style="max-height: 300px; overflow-y: auto;">
+                    <table>
+                        {% for p in productos %}
+                        <tr class="{{ 'low-stock' if p[3] <= p[4] else '' }}">
+                            <td>{{ p[1] }}</td>
+                            <td>{{ p[3] }} {{ 'un' if p[5] else 'g/kg' }}</td>
+                            <td><button onclick="reponer({{ p[0] }})" style="padding: 5px; font-size: 12px; width: auto;">+ Stock</button></td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="card">
         <h2>Nueva Venta</h2>
         <button onclick="crearVenta()">+ Iniciar Venta</button>
-        <p>ID actual: <span id="disp_id" style="font-weight:bold; color: #2e7d32;">Ninguna</span></p>
-
-        <div id="zona_carga" style="display:none; border-top: 1px solid #eee; padding-top: 10px;">
-            <input list="lista_productos_cat" id="in_prod" placeholder="Buscar producto...">
-            <input type="number" id="in_gr" placeholder="Gramos (ej: 250)">
-            <button onclick="agregarItem()">Añadir</button>
+        <p>Venta Activa ID: <span id="disp_id">---</span></p>
+        <div id="zona_carga" style="display:none;">
+            <select id="sel_prod">
+                {% for p in productos %}
+                <option value="{{ p[1] }}" data-unidad="{{ 'u' if p[5] else 'g' }}">{{ p[1] }}</option>
+                {% endfor %}
+            </select>
+            <input type="number" id="in_cant" placeholder="Cantidad (g o un)">
+            <button onclick="agregarItem()" class="btn-blue">Agregar</button>
             <ul id="lista_prev"></ul>
-            <button onclick="finalizarVenta()" class="btn-print">Cerrar Venta y Guardar</button>
+            <button onclick="finalizarVenta()">Finalizar Venta</button>
         </div>
     </div>
 
     <div class="card">
-        <h2>Historial de Ventas</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Fecha</th>
-                    <th>Detalle</th>
-                    <th>Total</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody id="tabla_ventas"></tbody>
-        </table>
-        <br>
-        <button onclick="resetSistema()" style="background: #333; font-size: 10px;">Resetear IDs (Borrar Todo)</button>
+        <h2>Últimas Ventas</h2>
+        <table id="tabla_ventas"></table>
     </div>
 
 <script>
     let current_id = null;
+
+    function reponer(id) {
+        let cant = prompt("¿Cuánto stock vas a agregar?");
+        if(cant) {
+            let f = new FormData(); f.append('producto_id', id); f.append('cantidad', cant);
+            fetch('/reponer_stock', {method:'POST', body:f}).then(() => location.reload());
+        }
+    }
 
     function crearVenta() {
         fetch('/nueva_venta').then(res => res.json()).then(data => {
@@ -77,29 +99,23 @@
     }
 
     function agregarItem() {
-        let form = new FormData();
-        form.append('venta_id', current_id);
-        form.append('producto', document.getElementById('in_prod').value);
-        form.append('gramos', document.getElementById('in_gr').value);
+        let f = new FormData();
+        f.append('venta_id', current_id);
+        f.append('producto', document.getElementById('sel_prod').value);
+        f.append('cantidad', document.getElementById('in_cant').value);
 
-        fetch('/agregar_producto', {method: 'POST', body: form})
-        .then(res => res.json())
-        .then(data => {
+        fetch('/agregar_producto', {method:'POST', body:f}).then(res => res.json()).then(data => {
             let li = document.createElement('li');
-            li.innerText = `${document.getElementById('in_prod').value} - ${document.getElementById('in_gr').value}g ($${data.subtotal.toFixed(2)})`;
+            li.innerText = `${document.getElementById('sel_prod').value} added ($${data.subtotal.toFixed(2)})`;
             document.getElementById('lista_prev').appendChild(li);
-            document.getElementById('in_prod').value = '';
-            document.getElementById('in_gr').value = '';
         });
     }
 
     function finalizarVenta() {
-        let form = new FormData();
-        form.append('venta_id', current_id);
-        fetch('/finalizar_venta', {method: 'POST', body: form}).then(() => {
-            alert("Venta guardada");
-            document.getElementById('zona_carga').style.display = 'none';
-            cargarVentas();
+        let f = new FormData(); f.append('venta_id', current_id);
+        fetch('/finalizar_venta', {method:'POST', body:f}).then(() => {
+            alert("Venta finalizada");
+            location.reload();
         });
     }
 
@@ -107,55 +123,16 @@
         fetch('/ventas').then(res => res.json()).then(data => {
             let html = '';
             data.ventas.forEach(v => {
-                html += `<tr>
-                    <td>${v[0]}</td>
-                    <td>${v[1]}</td>
-                    <td style="font-size: 12px;">${v[2] || '-'}</td>
-                    <td>$${v[3].toFixed(2)}</td>
-                    <td>
-                        <button class="btn-print" onclick="imprimir(${v[0]})">🖨️</button>
-                        <button class="btn-del" onclick="eliminar(${v[0]})">🗑️</button>
-                    </td>
-                </tr>`;
+                html += `<tr><td>#${v[0]}</td><td>${v[1]}</td><td>${v[2]}</td><td><b>$${v[3]}</b></td></tr>`;
             });
             document.getElementById('tabla_ventas').innerHTML = html;
         });
     }
 
-    function imprimir(id) {
-        fetch(`/ticket/${id}`).then(res => res.json()).then(data => {
-            let win = window.open('', '', 'height=600,width=400');
-            win.document.write(`
-                <html><body style="font-family:monospace; width:280px; padding:10px;">
-                    <center><h2>🌿 NATU 🌿</h2><p>Ticket #${data.venta[0]}<br>${data.venta[1]}</p></center>
-                    <hr>
-                    ${data.detalles.map(d => `<p>${d[0]} (${d[1]}g)<br>Subtotal: $${d[2].toFixed(2)}</p>`).join('')}
-                    <hr><h3 style="text-align:right;">TOTAL: $${data.venta[2].toFixed(2)}</h3>
-                    <center><p>¡Gracias por elegirnos!</p></center>
-                    <script>window.print(); window.close();<\/script>
-                </body></html>
-            `);
-            win.document.close();
-        });
-    }
-
-    function eliminar(id) {
-        if(confirm("¿Borrar venta?")) {
-            let f = new FormData(); f.append('venta_id', id);
-            fetch('/eliminar_venta', {method: 'POST', body: f}).then(() => cargarVentas());
-        }
-    }
-
-    function resetSistema() {
-        if(confirm("Se borrará TODO y el ID volverá a 1. ¿Estás seguro?")) {
-            fetch('/reset_sistema', {method: 'POST'}).then(() => location.reload());
-        }
-    }
-
     document.getElementById('form_catalogo').onsubmit = function(e) {
         e.preventDefault();
         fetch('/agregar_producto_catalogo', {method: 'POST', body: new FormData(this)})
-        .then(() => { alert("Catálogo actualizado"); location.reload(); });
+        .then(() => location.reload());
     }
 
     window.onload = cargarVentas;
