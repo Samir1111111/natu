@@ -8,7 +8,7 @@ from datetime import datetime
 
 app = FastAPI()
 
-DATABASE_URL = "postgresql://postgres:[Samirphite2006]@db.wxgqlovvyqjbgahxdyil.supabase.co:5432/postgres"
+DATABASE_URL = "postgresql://postgres:[Samirphite2006]@db.ipv4.wxgqlovvyqjbgahxdyil.supabase.co:5432/postgres"
 
 def get_db_connection():
     return psycopg2.connect(DATABASE_URL)
