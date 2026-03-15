@@ -4,12 +4,9 @@ from psycopg2.extras import RealDictCursor
 from flask import Flask, render_template, request, redirect, url_for
 
 app = Flask(__name__)
-
-# URL de la base de datos desde las variables de entorno de Render
-DATABASE_URL = os.getenv('DATABASE_URL')
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def get_db_connection():
-    # El sslmode='require' es obligatorio para Supabase en Render
     return psycopg2.connect(DATABASE_URL, sslmode='require', cursor_factory=RealDictCursor)
 
 @app.route('/')
@@ -19,18 +16,13 @@ def index():
         cur = conn.cursor()
         cur.execute('SELECT * FROM productos ORDER BY nombre ASC')
         productos = cur.fetchall()
-        cur.execute('''
-            SELECT v.*, p.nombre 
-            FROM ventas v 
-            JOIN productos p ON v.producto_id = p.id 
-            ORDER BY v.fecha DESC LIMIT 10
-        ''')
+        cur.execute('SELECT v.*, p.nombre FROM ventas v JOIN productos p ON v.producto_id = p.id ORDER BY v.fecha DESC LIMIT 10')
         ventas = cur.fetchall()
         cur.close()
         conn.close()
         return render_template('index.html', productos=productos, ventas=ventas)
     except Exception as e:
-        return f"Error en la base de datos: {e}"
+        return f"Error en la base de datos: {str(e)}"
 
 @app.route('/agregar_producto', methods=['POST'])
 def agregar_producto():
@@ -69,6 +61,3 @@ def venta():
     cur.close()
     conn.close()
     return redirect(url_for('index'))
-
-# NO pongas el bloque init_db() afuera si da errores, 
-# Render ejecutará gunicorn app:app y eso es suficiente.
