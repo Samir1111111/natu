@@ -4,10 +4,12 @@ from psycopg2.extras import RealDictCursor
 from flask import Flask, render_template, request, redirect, url_for
 
 app = Flask(__name__)
+
+# Esta es la variable que ya tienes configurada en Render
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def get_db_connection():
-    # Conexión estándar para Render -> Supabase Pooler
+    # Volvemos a la conexión simple que te funcionaba
     return psycopg2.connect(DATABASE_URL, sslmode='require', cursor_factory=RealDictCursor)
 
 @app.route('/')
@@ -15,10 +17,10 @@ def index():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        # Obtener productos
+        # Traer productos
         cur.execute('SELECT * FROM productos ORDER BY nombre ASC')
         productos = cur.fetchall()
-        # Obtener ventas (limitado a 10)
+        # Traer últimas 10 ventas
         cur.execute('''
             SELECT v.*, p.nombre 
             FROM ventas v 
@@ -30,7 +32,7 @@ def index():
         conn.close()
         return render_template('index.html', productos=productos, ventas=ventas)
     except Exception as e:
-        return f"Error en la app: {str(e)}"
+        return f"Error de conexión: {str(e)}"
 
 @app.route('/agregar_producto', methods=['POST'])
 def agregar_producto():
@@ -41,8 +43,10 @@ def agregar_producto():
     
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute('INSERT INTO productos (nombre, precio_unitario, stock_actual, es_unidad) VALUES (%s, %s, %s, %s)',
-                (nombre, precio, stock, es_unidad))
+    cur.execute('''
+        INSERT INTO productos (nombre, precio_unitario, stock_actual, es_unidad) 
+        VALUES (%s, %s, %s, %s)
+    ''', (nombre, precio, stock, es_unidad))
     conn.commit()
     cur.close()
     conn.close()
@@ -55,6 +59,7 @@ def venta():
     
     conn = get_db_connection()
     cur = conn.cursor()
+    
     cur.execute('SELECT * FROM productos WHERE id = %s', (producto_id,))
     producto = cur.fetchone()
     
@@ -71,4 +76,6 @@ def venta():
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
+    # Render usa la variable PORT, si no existe usa el 5000
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
