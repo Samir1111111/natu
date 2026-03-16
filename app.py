@@ -4,12 +4,10 @@ from psycopg2.extras import RealDictCursor
 from flask import Flask, render_template, request, redirect, url_for
 
 app = Flask(__name__)
-
-# Esta es la variable que ya tienes configurada en Render
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def get_db_connection():
-    # Volvemos a la conexión simple que te funcionaba
+    # Volvemos a la conexión que te funcionaba perfecto
     return psycopg2.connect(DATABASE_URL, sslmode='require', cursor_factory=RealDictCursor)
 
 @app.route('/')
@@ -17,10 +15,8 @@ def index():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        # Traer productos
         cur.execute('SELECT * FROM productos ORDER BY nombre ASC')
         productos = cur.fetchall()
-        # Traer últimas 10 ventas
         cur.execute('''
             SELECT v.*, p.nombre 
             FROM ventas v 
@@ -59,7 +55,6 @@ def venta():
     
     conn = get_db_connection()
     cur = conn.cursor()
-    
     cur.execute('SELECT * FROM productos WHERE id = %s', (producto_id,))
     producto = cur.fetchone()
     
@@ -76,6 +71,5 @@ def venta():
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    # Render usa la variable PORT, si no existe usa el 5000
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
