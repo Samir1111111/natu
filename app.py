@@ -4,9 +4,12 @@ from psycopg2.extras import RealDictCursor
 from flask import Flask, render_template, request, redirect, url_for
 
 app = Flask(__name__)
+
+# Usamos la variable que ya configuraste en el entorno de Render
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def get_db_connection():
+    # Mantenemos la conexión tal cual funcionaba antes
     return psycopg2.connect(DATABASE_URL, sslmode='require', cursor_factory=RealDictCursor)
 
 @app.route('/')
@@ -14,27 +17,36 @@ def index():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+        # Traemos productos ordenados y las últimas 10 ventas
         cur.execute('SELECT * FROM productos ORDER BY nombre ASC')
         productos = cur.fetchall()
-        cur.execute('SELECT v.*, p.nombre FROM ventas v JOIN productos p ON v.producto_id = p.id ORDER BY v.fecha DESC LIMIT 10')
+        cur.execute('''
+            SELECT v.*, p.nombre 
+            FROM ventas v 
+            JOIN productos p ON v.producto_id = p.id 
+            ORDER BY v.fecha DESC LIMIT 10
+        ''')
         ventas = cur.fetchall()
         cur.close()
         conn.close()
         return render_template('index.html', productos=productos, ventas=ventas)
     except Exception as e:
-        return f"Error en la base de datos: {str(e)}"
+        return f"Error: {str(e)}"
 
 @app.route('/agregar_producto', methods=['POST'])
 def agregar_producto():
     nombre = request.form['nombre']
     precio = float(request.form['precio'])
     stock = float(request.form['stock'])
+    # Verificamos si es unidad (True) o peso (False)
     es_unidad = request.form.get('es_unidad') == 'true'
     
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute('INSERT INTO productos (nombre, precio_unitario, stock_actual, es_unidad) VALUES (%s, %s, %s, %s)',
-                (nombre, precio, stock, es_unidad))
+    cur.execute('''
+        INSERT INTO productos (nombre, precio_unitario, stock_actual, es_unidad) 
+        VALUES (%s, %s, %s, %s)
+    ''', (nombre, precio, stock, es_unidad))
     conn.commit()
     cur.close()
     conn.close()
@@ -52,8 +64,10 @@ def venta():
     
     if producto and producto['stock_actual'] >= cantidad:
         subtotal = float(producto['precio_unitario']) * cantidad
+        # Registramos la venta
         cur.execute('INSERT INTO ventas (producto_id, cantidad, subtotal) VALUES (%s, %s, %s)',
                     (producto_id, cantidad, subtotal))
+        # Actualizamos el stock
         cur.execute('UPDATE productos SET stock_actual = stock_actual - %s WHERE id = %s',
                     (cantidad, producto_id))
         conn.commit()
@@ -61,3 +75,6 @@ def venta():
     cur.close()
     conn.close()
     return redirect(url_for('index'))
+
+if __name__ == '__main__':
+    app.run(debug=True)
