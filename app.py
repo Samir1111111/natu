@@ -7,7 +7,7 @@ app = Flask(__name__)
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def get_db_connection():
-    # Añadimos sslmode para seguridad y eliminamos parámetros extra
+    # Conexión estándar para Render -> Supabase Pooler
     return psycopg2.connect(DATABASE_URL, sslmode='require', cursor_factory=RealDictCursor)
 
 @app.route('/')
@@ -15,15 +15,22 @@ def index():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+        # Obtener productos
         cur.execute('SELECT * FROM productos ORDER BY nombre ASC')
         productos = cur.fetchall()
-        cur.execute('SELECT v.*, p.nombre FROM ventas v JOIN productos p ON v.producto_id = p.id ORDER BY v.fecha DESC LIMIT 10')
+        # Obtener ventas (limitado a 10)
+        cur.execute('''
+            SELECT v.*, p.nombre 
+            FROM ventas v 
+            JOIN productos p ON v.producto_id = p.id 
+            ORDER BY v.fecha DESC LIMIT 10
+        ''')
         ventas = cur.fetchall()
         cur.close()
         conn.close()
         return render_template('index.html', productos=productos, ventas=ventas)
     except Exception as e:
-        return f"Error de conexión: {str(e)}"
+        return f"Error en la app: {str(e)}"
 
 @app.route('/agregar_producto', methods=['POST'])
 def agregar_producto():
@@ -51,7 +58,7 @@ def venta():
     cur.execute('SELECT * FROM productos WHERE id = %s', (producto_id,))
     producto = cur.fetchone()
     
-    if producto and producto['stock_actual'] >= cantidad:
+    if producto and float(producto['stock_actual']) >= cantidad:
         subtotal = float(producto['precio_unitario']) * cantidad
         cur.execute('INSERT INTO ventas (producto_id, cantidad, subtotal) VALUES (%s, %s, %s)',
                     (producto_id, cantidad, subtotal))
@@ -62,3 +69,6 @@ def venta():
     cur.close()
     conn.close()
     return redirect(url_for('index'))
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
