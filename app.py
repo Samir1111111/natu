@@ -8,26 +8,14 @@ from datetime import datetime
 
 app = FastAPI()
 
-# Reemplaza [YOUR-PASSWORD] con tu contraseña de Supabase
-DATABASE_URL = "postgresql://postgres:[Samirphite2006]@db.wxgqlovvyqjbgahxdyil.supabase.co:5432/postgres"
+# Obtiene la URL de Render (Settings > Environment Variables)
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def get_db_connection():
-    return psycopg2.connect(DATABASE_URL)
+    # El sslmode es vital para que Supabase no rechace la conexión
+    return psycopg2.connect(DATABASE_URL, sslmode='require')
 
 templates = Jinja2Templates(directory="templates")
-
-# Inicialización de tablas en PostgreSQL
-def init_db():
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("CREATE TABLE IF NOT EXISTS productos(id SERIAL PRIMARY KEY, nombre TEXT UNIQUE, precio_kg REAL)")
-    cur.execute("CREATE TABLE IF NOT EXISTS ventas(id SERIAL PRIMARY KEY, fecha TEXT, total REAL)")
-    cur.execute("CREATE TABLE IF NOT EXISTS detalle_venta(id SERIAL PRIMARY KEY, venta_id INTEGER, producto TEXT, gramos INTEGER, precio REAL)")
-    conn.commit()
-    cur.close()
-    conn.close()
-
-init_db()
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
