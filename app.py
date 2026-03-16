@@ -7,7 +7,7 @@ app = Flask(__name__)
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def get_db_connection():
-    # Volvemos a la conexión que te funcionaba perfecto
+    # Esta es la conexión que te funcionaba perfecto
     return psycopg2.connect(DATABASE_URL, sslmode='require', cursor_factory=RealDictCursor)
 
 @app.route('/')
@@ -69,7 +69,3 @@ def venta():
     cur.close()
     conn.close()
     return redirect(url_for('index'))
-
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
