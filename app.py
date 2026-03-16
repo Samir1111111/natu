@@ -8,12 +8,11 @@ from datetime import datetime
 
 app = FastAPI()
 
-# Obtiene la URL de Render (Settings > Environment Variables)
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def get_db_connection():
-    # El sslmode es vital para que Supabase no rechace la conexión
-    return psycopg2.connect(DATABASE_URL, sslmode='require')
+    # Solo pasamos la URL, ya que el usuario y el sslmode van dentro de ella
+    return psycopg2.connect(DATABASE_URL)
 
 templates = Jinja2Templates(directory="templates")
 
