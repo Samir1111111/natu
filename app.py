@@ -10,7 +10,7 @@ app = FastAPI()
 
 # URL CORREGIDA: Usamos el host del pooler con el puerto 5432 y el usuario completo
 # Reemplaza [TU-CONTRASEÑA] con la real.
-DATABASE_URL = "postgresql://postgres.wxgqlovvyqjbgahxdyil:[TU-CONTRASEÑA]@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+DATABASE_URL = "postgresql://postgres:[Samirphite2006]@db.wxgqlovvyqjbgahxdyil.supabase.co:5432/postgres"
 
 def get_db_connection():
     # Conexión directa con SSL requerido para Render
