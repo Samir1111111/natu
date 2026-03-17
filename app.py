@@ -8,10 +8,12 @@ from datetime import datetime
 
 app = FastAPI()
 
-DATABASE_URL = os.environ.get('DATABASE_URL')
+# URL CORREGIDA: Usamos el host del pooler con el puerto 5432 y el usuario completo
+# Reemplaza [TU-CONTRASEÑA] con la real.
+DATABASE_URL = "postgresql://postgres.wxgqlovvyqjbgahxdyil:[TU-CONTRASEÑA]@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
 
 def get_db_connection():
-    # Solo pasamos la URL, ya que el usuario y el sslmode van dentro de ella
+    # Conexión directa con SSL requerido para Render
     return psycopg2.connect(DATABASE_URL)
 
 templates = Jinja2Templates(directory="templates")
