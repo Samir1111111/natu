@@ -9,6 +9,8 @@ from datetime import datetime
 app = FastAPI()
 
 # NUEVA URL (Sustituí [TU-CONTRASEÑA] y fijate en el puerto 6543)
+# Reemplaza [TU-CONTRASEÑA] con la real. 
+# El usuario DEBE ser postgres.tcdkapcrcntrawckkaex
 DATABASE_URL = "postgresql://postgres.tcdkapcrcntrawckkaex:[Samirphite2006]@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require"
 
 def get_db_connection():
@@ -62,6 +64,7 @@ init_db()
 templates = Jinja2Templates(directory="templates")
 
 @app.get("/", response_class=HTMLResponse)
+@app.head("/")
 def home(request: Request):
     try:
         conn = get_db_connection()
