@@ -8,7 +8,7 @@
         body { font-family: 'Segoe UI', sans-serif; margin: 20px; background: #fdfaf5; color: #4a4a4a; }
         .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); margin-bottom: 25px; border-left: 5px solid #7ea04d; }
         h1, h2 { color: #5c7a33; margin-top: 0; }
-        input, button { padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; font-size: 16px; }
+        input, button, select { padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; font-size: 16px; }
         input:focus { outline: none; border-color: #7ea04d; box-shadow: 0 0 5px rgba(126,160,77,0.3); }
         button { cursor: pointer; background: #7ea04d; color: white; border: none; font-weight: 600; transition: 0.3s; width: 100%; max-width: 250px; }
         button:hover { background: #6a8841; transform: translateY(-1px); }
@@ -28,10 +28,7 @@
         <hr>
         <h3>Actualizar Precios</h3>
         <form id="form_catalogo">
-            <input type="text" name="nombre" list="lista_productos_cat" placeholder="Nombre del producto" required style="width: 250px;">
-            <datalist id="lista_productos_cat">
-                {% for p in productos %}<option value="{{p[1]}}">{% endfor %}
-            </datalist>
+            <input type="text" name="nombre" placeholder="Nombre del producto" required style="width: 250px;">
             <input type="number" step="0.01" name="precio_kg" placeholder="Precio x KG ($)" required style="width: 150px;">
             <button type="submit">Actualizar Catálogo</button>
         </form>
@@ -43,9 +40,14 @@
         <p>Venta Activa ID: <span id="disp_id" style="font-weight:bold; color: #7ea04d;">Ninguna</span></p>
 
         <div id="zona_carga" style="display:none; padding: 20px; background: #f9f9f9; border-radius: 10px;">
-            <input list="lista_productos_cat" id="in_prod" placeholder="Producto...">
-            <input type="number" id="in_gr" placeholder="Gramos">
-            <button onclick="agregarItem()">Añadir Producto</button>
+            <select id="in_prod" style="width: 250px;">
+                <option value="">Seleccionar producto...</option>
+                {% for p in productos %}
+                <option value="{{ p[1] }}">{{ p[1] }} ($ {{ p[2] }}/kg)</option>
+                {% endfor %}
+            </select>
+            <input type="number" id="in_gr" placeholder="Gramos (ej: 500)">
+            <button onclick="agregarItem()">Añadir al Ticket</button>
             <ul id="lista_prev" style="margin: 15px 0;"></ul>
             <button onclick="finalizarVenta()" class="btn-print">Cerrar y Guardar Venta</button>
         </div>
@@ -59,7 +61,7 @@
                     <tr>
                         <th>ID</th>
                         <th>Fecha</th>
-                        <th>Detalle de Productos</th>
+                        <th>Detalle</th>
                         <th>Total</th>
                         <th>Acción</th>
                     </tr>
@@ -83,18 +85,22 @@
     }
 
     function agregarItem() {
+        let prod = document.getElementById('in_prod').value;
+        let gr = document.getElementById('in_gr').value;
+        if(!prod || !gr) return alert("Completar producto y gramos");
+
         let form = new FormData();
         form.append('venta_id', current_id);
-        form.append('producto', document.getElementById('in_prod').value);
-        form.append('gramos', document.getElementById('in_gr').value);
+        form.append('producto', prod);
+        form.append('gramos', gr);
 
         fetch('/agregar_producto', {method: 'POST', body: form})
         .then(res => res.json())
         .then(data => {
+            if(data.error) return alert(data.error);
             let li = document.createElement('li');
-            li.innerText = `${document.getElementById('in_prod').value} - ${document.getElementById('in_gr').value}g ($${data.subtotal.toFixed(2)})`;
+            li.innerText = `${prod} - ${gr}g ($${data.subtotal.toFixed(2)})`;
             document.getElementById('lista_prev').appendChild(li);
-            document.getElementById('in_prod').value = '';
             document.getElementById('in_gr').value = '';
         });
     }
@@ -103,7 +109,7 @@
         let form = new FormData();
         form.append('venta_id', current_id);
         fetch('/finalizar_venta', {method: 'POST', body: form}).then(() => {
-            alert("Venta guardada con éxito");
+            alert("Venta guardada");
             document.getElementById('zona_carga').style.display = 'none';
             document.getElementById('disp_id').innerText = "Ninguna";
             cargarVentas();
@@ -133,18 +139,13 @@
         fetch(`/ticket/${id}`).then(res => res.json()).then(data => {
             let win = window.open('', '', 'height=600,width=400');
             win.document.write(`
-                <html><body style="font-family:monospace; width:280px; padding:10px; color:#333;">
-                    <center>
-                        <h2 style="margin-bottom:5px;">🌿 NATU 🌿</h2>
-                        <p style="font-size:12px; margin-top:0;">Naturalmente Rico</p>
-                        <p>Ticket #${data.venta[0]}<br>${data.venta[1]}</p>
-                    </center>
-                    <hr style="border: 1px dashed #ccc;">
-                    ${data.detalles.map(d => `<p>${d[0]} (${d[1]}g)<br>Subtotal: $${d[2].toFixed(2)}</p>`).join('')}
-                    <hr style="border: 1px dashed #ccc;">
+                <html><body style="font-family:monospace; width:280px; padding:10px;">
+                    <center><h2>🌿 NATU 🌿</h2><p>Naturalmente Rico</p></center>
+                    <hr>
+                    <p>Ticket #${data.venta[0]} - ${data.venta[1]}</p>
+                    ${data.detalles.map(d => `<p>${d[0]} (${d[1]}g): $${d[2].toFixed(2)}</p>`).join('')}
+                    <hr>
                     <h3 style="text-align:right;">TOTAL: $${data.venta[2].toFixed(2)}</h3>
-                    <br>
-                    <center><p>¡Gracias por tu compra!</p></center>
                     <script>window.print(); window.close();<\/script>
                 </body></html>
             `);
@@ -153,14 +154,14 @@
     }
 
     function eliminar(id) {
-        if(confirm("¿Seguro que querés eliminar esta venta?")) {
+        if(confirm("¿Eliminar venta?")) {
             let f = new FormData(); f.append('venta_id', id);
             fetch('/eliminar_venta', {method: 'POST', body: f}).then(() => cargarVentas());
         }
     }
 
     function resetSistema() {
-        if(confirm("¡ATENCIÓN! Se borrarán todas las ventas y el contador volverá a 1. ¿Continuar?")) {
+        if(confirm("¿Borrar TODO?")) {
             fetch('/reset_sistema', {method: 'POST'}).then(() => location.reload());
         }
     }
@@ -168,7 +169,7 @@
     document.getElementById('form_catalogo').onsubmit = function(e) {
         e.preventDefault();
         fetch('/agregar_producto_catalogo', {method: 'POST', body: new FormData(this)})
-        .then(() => { alert("Producto guardado"); location.reload(); });
+        .then(() => { alert("Catálogo actualizado"); location.reload(); });
     }
 
     window.onload = cargarVentas;
