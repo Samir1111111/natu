@@ -8,25 +8,72 @@ from datetime import datetime
 
 app = FastAPI()
 
-# URL CORREGIDA: Usamos el host del pooler con el puerto 5432 y el usuario completo
-# Reemplaza [TU-CONTRASEÑA] con la real.
-DATABASE_URL = "postgresql://postgres:[Samirphite2006]@db.wxgqlovvyqjbgahxdyil.supabase.co:5432/postgres"
+# URL con Host de Pooler para evitar errores de IPv6 en Render
+# Asegúrate de que la contraseña sea la correcta.
+DATABASE_URL = "postgresql://postgres:[Samirphite2006]@db.tcdkapcrcntrawckkaex.supabase.co:5432/postgres"
 
 def get_db_connection():
-    # Conexión directa con SSL requerido para Render
     return psycopg2.connect(DATABASE_URL)
+
+# FUNCIÓN QUE CREA LAS TABLAS AUTOMÁTICAMENTE
+def init_db():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Tabla de Productos
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS productos (
+                id SERIAL PRIMARY KEY, 
+                nombre TEXT UNIQUE, 
+                precio_kg REAL
+            );
+        """)
+        
+        # Tabla de Ventas
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS ventas (
+                id SERIAL PRIMARY KEY, 
+                fecha TEXT, 
+                total REAL
+            );
+        """)
+        
+        # Tabla de Detalle de Venta
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS detalle_venta (
+                id SERIAL PRIMARY KEY, 
+                venta_id INTEGER REFERENCES ventas(id) ON DELETE CASCADE, 
+                producto TEXT, 
+                gramos INTEGER, 
+                precio REAL
+            );
+        """)
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("✅ Tablas verificadas/creadas con éxito.")
+    except Exception as e:
+        print(f"❌ Error al iniciar la DB: {e}")
+
+# Ejecutar la creación de tablas al encender la app
+init_db()
 
 templates = Jinja2Templates(directory="templates")
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM productos ORDER BY nombre ASC")
-    productos = cur.fetchall()
-    cur.close()
-    conn.close()
-    return templates.TemplateResponse("index.html", {"request": request, "productos": productos})
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM productos ORDER BY nombre ASC")
+        productos = cur.fetchall()
+        cur.close()
+        conn.close()
+        return templates.TemplateResponse("index.html", {"request": request, "productos": productos})
+    except Exception as e:
+        return HTMLResponse(content=f"<h1>Error de conexión:</h1><p>{e}</p>", status_code=500)
 
 @app.get("/nueva_venta")
 def nueva_venta():
@@ -54,7 +101,7 @@ def agregar_producto(venta_id: int = Form(...), producto: str = Form(...), gramo
         cur.close()
         conn.close()
         return {"subtotal": total_prod}
-    return {"error": "No encontrado"}
+    return {"error": "Producto no encontrado"}
 
 @app.post("/finalizar_venta")
 def finalizar_venta(venta_id: int = Form(...)):
