@@ -8,9 +8,8 @@ from datetime import datetime
 
 app = FastAPI()
 
-# URL con Host de Pooler para evitar errores de IPv6 en Render
-# Asegúrate de que la contraseña sea la correcta.
-DATABASE_URL = "postgresql://postgres:[Samirphite2006]@db.tcdkapcrcntrawckkaex.supabase.co:5432/postgres"
+# NUEVA URL (Sustituí [TU-CONTRASEÑA] y fijate en el puerto 6543)
+DATABASE_URL = "postgresql://postgres.tcdkapcrcntrawckkaex:[Samirphite2006]@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require"
 
 def get_db_connection():
     return psycopg2.connect(DATABASE_URL)
