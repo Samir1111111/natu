@@ -29,9 +29,15 @@ def index(request: Request):
     finally:
         if conn: conn.close()
 
-# --- GESTIÓN DE CATÁLOGO ---
 @app.post("/catalogo")
-def guardar_catalogo(nombre: str = Form(...), p100: float = Form(...), p250: float = Form(...), p500: float = Form(...), p1000: float = Form(...), unidad: str = Form("false")):
+def guardar_catalogo(
+    nombre: str = Form(...), 
+    p100: float = Form(...), 
+    p250: float = Form(...), 
+    p500: float = Form(...), 
+    p1000: float = Form(...), 
+    unidad: str = Form("false")
+):
     is_uni = unidad.lower() == "true"
     conn = None
     try:
@@ -41,7 +47,11 @@ def guardar_catalogo(nombre: str = Form(...), p100: float = Form(...), p250: flo
             INSERT INTO productos (nombre, p_100, p_250, p_500, p_1000, es_unitario)
             VALUES (%s,%s,%s,%s,%s,%s)
             ON CONFLICT (nombre) DO UPDATE SET 
-            p_100=EXCLUDED.p_100, p_250=EXCLUDED.p_250, p_500=EXCLUDED.p_500, p_1000=EXCLUDED.p_1000, es_unitario=EXCLUDED.es_unitario
+            p_100=EXCLUDED.p_100, 
+            p_250=EXCLUDED.p_250, 
+            p_500=EXCLUDED.p_500, 
+            p_1000=EXCLUDED.p_1000, 
+            es_unitario=EXCLUDED.es_unitario
         """, (nombre.strip(), p100, p250, p500, p1000, is_uni))
         conn.commit()
         return {"status": "ok"}
