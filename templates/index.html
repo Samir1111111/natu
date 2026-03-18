@@ -1,141 +1,103 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Natu PRO | Gestión</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f4f7f6; }
-        .glass-card { @apply bg-white p-6 rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100; }
-        .input-pro { @apply w-full bg-slate-100 border-none p-4 rounded-2xl focus:ring-2 focus:ring-green-500 outline-none text-slate-700; }
-    </style>
-</head>
-<!-- Reemplaza el contenido de tu body con esto -->
-<body class="p-4 md:p-10 bg-slate-50">
-    <div class="max-w-7xl mx-auto space-y-8">
-        
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            <!-- 1. NUEVA VENTA CON CARRITO -->
-            <div class="lg:col-span-2 glass-card space-y-4">
-                <h3 class="font-bold text-xl">🛒 Carrito de Venta</h3>
-                <div class="flex gap-2">
-                    <div class="flex-1">
-                        <input type="text" id="bus_prod" onkeyup="buscarProd()" placeholder="Buscar producto..." class="input-pro mb-2">
-                        <select id="sel_prod" class="input-pro">
-                            <option value="">Seleccionar...</option>
-                            {% for p in productos %}
-                            <option value="{{p.nombre}}" data-uni="{{p.es_unitario}}">{{p.nombre}} (Stock: {{p.stock_gramos}})</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <input type="number" id="val_cant" placeholder="Cant." class="input-pro w-24">
-                    <button onclick="agregarAlCarrito()" class="bg-green-100 text-green-700 px-6 rounded-2xl font-bold">＋</button>
-                </div>
+<script>
+let carrito = [];
 
-                <div class="bg-slate-100 rounded-3xl p-4 min-h-[200px]">
-                    <table class="w-full text-sm">
-                        <tbody id="tabla_carrito"></tbody>
-                    </table>
-                </div>
-                
-                <button onclick="finalizarVenta()" class="w-full py-4 bg-green-600 text-white rounded-3xl font-bold text-lg shadow-lg">Finalizar Venta</button>
-            </div>
+function agregarAlCarrito() {
+    let p = document.getElementById('sel_prod').value;
+    let c = parseInt(document.getElementById('val_cant').value);
 
-            <div class="space-y-8">
-                <!-- 2. REPOSICIÓN DE STOCK SEPARADA -->
-                <div class="glass-card bg-blue-50/50 border-blue-100">
-                    <h3 class="font-bold text-lg mb-4 text-blue-700">📦 Reponer Stock</h3>
-                    <div class="space-y-3">
-                        <select id="stock_prod" class="input-pro bg-white">
-                            {% for p in productos %}
-                            <option value="{{p.nombre}}">{{p.nombre}}</option>
-                            {% endfor %}
-                        </select>
-                        <input type="number" id="stock_cant" placeholder="Cantidad a sumar" class="input-pro bg-white">
-                        <button onclick="reponerStock()" class="w-full py-3 bg-blue-600 text-white rounded-2xl font-bold">Actualizar Stock</button>
-                    </div>
-                </div>
+    if (!p || !c || c <= 0) {
+        alert("Completa producto y cantidad");
+        return;
+    }
 
-                <!-- 3. CONFIGURACIÓN DE PRECIOS -->
-                <div class="glass-card">
-                    <h3 class="font-bold text-lg mb-4">⚙️ Nuevo/Editar Producto</h3>
-                    <div class="grid grid-cols-2 gap-2">
-                        <input id="cat_nom" placeholder="Nombre" class="col-span-2 input-pro">
-                        <input id="cat_100" type="number" placeholder="$ 100g" class="input-pro text-xs">
-                        <input id="cat_250" type="number" placeholder="$ 250g" class="input-pro text-xs">
-                        <input id="cat_500" type="number" placeholder="$ 500g" class="input-pro text-xs">
-                        <input id="cat_1000" type="number" placeholder="$ 1kg/Uni" class="input-pro text-xs">
-                        <div class="col-span-2 flex items-center gap-2 py-2">
-                            <input type="checkbox" id="cat_uni"> <label class="text-xs font-bold">VENTA POR UNIDAD</label>
-                        </div>
-                        <button onclick="guardarCatalogo()" class="col-span-2 py-3 bg-slate-800 text-white rounded-2xl font-bold">Guardar en Catálogo</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    carrito.push({producto: p, cantidad: c});
+    renderCarrito();
+    document.getElementById('val_cant').value = "";
+}
 
-    <script>
-        let carrito = [];
+function renderCarrito() {
+    let h = '';
+    carrito.forEach((item, i) => {
+        h += `
+        <tr>
+            <td>${item.producto}</td>
+            <td>${item.cantidad}</td>
+            <td>
+                <button onclick="eliminar(${i})">❌</button>
+            </td>
+        </tr>`;
+    });
+    document.getElementById('tabla_carrito').innerHTML = h;
+}
 
-        function agregarAlCarrito() {
-            let p = document.getElementById('sel_prod').value;
-            let c = document.getElementById('val_cant').value;
-            if(!p || !c) return;
-            
-            carrito.push({producto: p, cantidad: c});
-            renderCarrito();
-            document.getElementById('val_cant').value = "";
-        }
+function eliminar(i){
+    carrito.splice(i,1);
+    renderCarrito();
+}
 
-        function renderCarrito() {
-            let h = '';
-            carrito.forEach((item, index) => {
-                h += `<tr class="border-b border-slate-200">
-                    <td class="py-2 font-bold">${item.producto}</td>
-                    <td class="py-2">${item.cantidad}g/u</td>
-                    <td class="py-2 text-right"><button onclick="carrito.splice(${index},1);renderCarrito()" class="text-red-500">✕</button></td>
-                </tr>`;
-            });
-            document.getElementById('tabla_carrito').innerHTML = h;
-        }
+async function finalizarVenta() {
+    if (carrito.length === 0) {
+        alert("Carrito vacío");
+        return;
+    }
 
-        function finalizarVenta() {
-            if(carrito.length === 0) return alert("Carrito vacío");
-            let f = new FormData();
-            f.append('carrito', JSON.stringify(carrito));
-            fetch('/registrar_venta_carrito', {method:'POST', body:f}).then(()=>location.reload());
-        }
+    let f = new FormData();
+    f.append('carrito', JSON.stringify(carrito));
 
-        function reponerStock() {
-            let f = new FormData();
-            f.append('producto', document.getElementById('stock_prod').value);
-            f.append('cantidad', document.getElementById('stock_cant').value);
-            fetch('/reponer_stock', {method:'POST', body:f}).then(()=>location.reload());
-        }
+    let res = await fetch('/registrar_venta_carrito', {
+        method: 'POST',
+        body: f
+    });
 
-        function guardarCatalogo() {
-            let f = new FormData();
-            f.append('nombre', document.getElementById('cat_nom').value);
-            f.append('p100', document.getElementById('cat_100').value || 0);
-            f.append('p250', document.getElementById('cat_250').value || 0);
-            f.append('p500', document.getElementById('cat_500').value || 0);
-            f.append('p1000', document.getElementById('cat_1000').value || 0);
-            f.append('unidad', document.getElementById('cat_uni').checked ? 'true' : 'false');
-            fetch('/add_producto_catalogo', {method:'POST', body:f}).then(()=>location.reload());
-        }
-        
-        function buscarProd() {
-            let q = document.getElementById('bus_prod').value.toLowerCase();
-            let sel = document.getElementById('sel_prod');
-            for(let opt of sel.options) {
-                opt.style.display = opt.text.toLowerCase().includes(q) ? "" : "none";
-            }
-        }
-    </script>
-</body>
-</html>
+    let data = await res.json();
+
+    if(data.error){
+        alert(data.error);
+        return;
+    }
+
+    alert("Venta registrada ✅");
+    location.reload();
+}
+
+async function reponerStock() {
+    let prod = document.getElementById('stock_prod').value;
+    let cant = parseInt(document.getElementById('stock_cant').value);
+
+    if (!cant || cant <= 0) {
+        alert("Cantidad inválida");
+        return;
+    }
+
+    let f = new FormData();
+    f.append('producto', prod);
+    f.append('cantidad', cant);
+
+    await fetch('/reponer_stock', {
+        method: 'POST',
+        body: f
+    });
+
+    alert("Stock actualizado ✅");
+    location.reload();
+}
+
+async function guardarCatalogo() {
+    let f = new FormData();
+
+    f.append('nombre', document.getElementById('cat_nom').value);
+    f.append('p100', document.getElementById('cat_100').value || 0);
+    f.append('p250', document.getElementById('cat_250').value || 0);
+    f.append('p500', document.getElementById('cat_500').value || 0);
+    f.append('p1000', document.getElementById('cat_1000').value || 0);
+    f.append('unidad', document.getElementById('cat_uni').checked ? 'true' : 'false');
+
+    await fetch('/add_producto_catalogo', {
+        method: 'POST',
+        body: f
+    });
+
+    alert("Producto guardado ✅");
+    location.reload();
+}
+</script>
