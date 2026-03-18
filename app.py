@@ -11,7 +11,7 @@ app = FastAPI()
 # NUEVA URL (Sustituí [TU-CONTRASEÑA] y fijate en el puerto 6543)
 # Reemplaza [TU-CONTRASEÑA] con la real. 
 # El usuario DEBE ser postgres.tcdkapcrcntrawckkaex
-DATABASE_URL = "postgresql://postgres.tcdkapcrcntrawckkaex:[Samirphite2006]@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
+DATABASE_URL = "postgresql://postgres.tcdkapcrcntrawckkaex:Samirphite2006@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
 
 def get_db_connection():
     return psycopg2.connect(DATABASE_URL)
