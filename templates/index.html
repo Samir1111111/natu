@@ -13,88 +13,109 @@
         .input-pro { @apply w-full bg-slate-100 border-none p-4 rounded-2xl focus:ring-2 focus:ring-green-500 outline-none text-slate-700; }
     </style>
 </head>
-<body class="p-4 md:p-10">
-
+<!-- Reemplaza el contenido de tu body con esto -->
+<body class="p-4 md:p-10 bg-slate-50">
     <div class="max-w-7xl mx-auto space-y-8">
-        <!-- Header -->
-        <div class="flex justify-between items-center">
-            <h1 class="text-3xl font-extrabold italic">🌿 Natu<span class="text-green-600">PRO</span></h1>
-            <div class="flex gap-4">
-                <div class="text-right">
-                    <p class="text-xs text-slate-400 font-bold uppercase">Hoy</p>
-                    <h2 id="stat_hoy" class="text-2xl font-black text-slate-800">$0</h2>
-                </div>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <!-- SECCIÓN VENTAS -->
-            <div class="glass-card space-y-6">
-                <h3 class="font-bold text-xl flex items-center gap-2">🛒 Nueva Venta</h3>
-                
-                <!-- Buscador de productos -->
-                <input type="text" id="bus_prod" onkeyup="buscarEnSelector()" placeholder="🔍 Buscar producto..." class="input-pro text-sm border-2 border-green-100 bg-white">
-                
-                <select id="sel_prod" class="input-pro">
-                    <option value="">Seleccionar producto...</option>
-                    {% for p in productos %}
-                    <option value="{{p.nombre}}">{{p.nombre}} (Stock: {{p.stock_gramos}})</option>
-                    {% endfor %}
-                </select>
-
-                <input type="number" id="val_cant" placeholder="Cantidad (Gramos o Unidades)" class="input-pro">
-                <button onclick="realizarVenta()" class="w-full py-5 bg-green-600 hover:bg-green-700 text-white rounded-3xl font-bold text-xl shadow-lg shadow-green-200 transition-all">Registrar Venta</button>
-            </div>
-
-            <!-- SECCIÓN CATÁLOGO -->
-            <div class="glass-card space-y-4">
-                <h3 class="font-bold text-xl">📦 Cargar Producto / Precios</h3>
-                <div class="grid grid-cols-2 gap-3">
-                    <input id="cat_nom" placeholder="Nombre del producto" class="col-span-2 input-pro">
-                    <input id="cat_100" type="number" placeholder="$ 100g" class="input-pro text-sm">
-                    <input id="cat_250" type="number" placeholder="$ 250g" class="input-pro text-sm">
-                    <input id="cat_500" type="number" placeholder="$ 500g" class="input-pro text-sm">
-                    <input id="cat_1000" type="number" placeholder="$ 1kg / Uni" class="input-pro text-sm">
-                    <div class="col-span-2 flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
-                        <input type="checkbox" id="cat_uni" class="w-5 h-5 accent-green-600">
-                        <label for="cat_uni" class="text-sm font-bold text-slate-500 uppercase italic">Venta por Unidad</label>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- 1. NUEVA VENTA CON CARRITO -->
+            <div class="lg:col-span-2 glass-card space-y-4">
+                <h3 class="font-bold text-xl">🛒 Carrito de Venta</h3>
+                <div class="flex gap-2">
+                    <div class="flex-1">
+                        <input type="text" id="bus_prod" onkeyup="buscarProd()" placeholder="Buscar producto..." class="input-pro mb-2">
+                        <select id="sel_prod" class="input-pro">
+                            <option value="">Seleccionar...</option>
+                            {% for p in productos %}
+                            <option value="{{p.nombre}}" data-uni="{{p.es_unitario}}">{{p.nombre}} (Stock: {{p.stock_gramos}})</option>
+                            {% endfor %}
+                        </select>
                     </div>
-                    <button onclick="guardarCatalogo()" class="col-span-1 py-4 bg-slate-800 text-white rounded-2xl font-bold">Guardar</button>
-                    <button onclick="reponerStock()" class="col-span-1 py-4 bg-blue-600 text-white rounded-2xl font-bold">Sumar Stock</button>
+                    <input type="number" id="val_cant" placeholder="Cant." class="input-pro w-24">
+                    <button onclick="agregarAlCarrito()" class="bg-green-100 text-green-700 px-6 rounded-2xl font-bold">＋</button>
                 </div>
-            </div>
-        </div>
 
-        <!-- HISTORIAL -->
-        <div class="glass-card">
-            <h3 class="font-bold text-xl mb-6">📋 Historial de hoy</h3>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left">
-                    <thead>
-                        <tr class="text-slate-400 text-xs font-bold uppercase border-b">
-                            <th class="pb-3">Producto</th>
-                            <th class="pb-3">Monto</th>
-                            <th class="pb-3 text-right">Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody id="lista_historial" class="divide-y divide-slate-100"></tbody>
-                </table>
+                <div class="bg-slate-100 rounded-3xl p-4 min-h-[200px]">
+                    <table class="w-full text-sm">
+                        <tbody id="tabla_carrito"></tbody>
+                    </table>
+                </div>
+                
+                <button onclick="finalizarVenta()" class="w-full py-4 bg-green-600 text-white rounded-3xl font-bold text-lg shadow-lg">Finalizar Venta</button>
+            </div>
+
+            <div class="space-y-8">
+                <!-- 2. REPOSICIÓN DE STOCK SEPARADA -->
+                <div class="glass-card bg-blue-50/50 border-blue-100">
+                    <h3 class="font-bold text-lg mb-4 text-blue-700">📦 Reponer Stock</h3>
+                    <div class="space-y-3">
+                        <select id="stock_prod" class="input-pro bg-white">
+                            {% for p in productos %}
+                            <option value="{{p.nombre}}">{{p.nombre}}</option>
+                            {% endfor %}
+                        </select>
+                        <input type="number" id="stock_cant" placeholder="Cantidad a sumar" class="input-pro bg-white">
+                        <button onclick="reponerStock()" class="w-full py-3 bg-blue-600 text-white rounded-2xl font-bold">Actualizar Stock</button>
+                    </div>
+                </div>
+
+                <!-- 3. CONFIGURACIÓN DE PRECIOS -->
+                <div class="glass-card">
+                    <h3 class="font-bold text-lg mb-4">⚙️ Nuevo/Editar Producto</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input id="cat_nom" placeholder="Nombre" class="col-span-2 input-pro">
+                        <input id="cat_100" type="number" placeholder="$ 100g" class="input-pro text-xs">
+                        <input id="cat_250" type="number" placeholder="$ 250g" class="input-pro text-xs">
+                        <input id="cat_500" type="number" placeholder="$ 500g" class="input-pro text-xs">
+                        <input id="cat_1000" type="number" placeholder="$ 1kg/Uni" class="input-pro text-xs">
+                        <div class="col-span-2 flex items-center gap-2 py-2">
+                            <input type="checkbox" id="cat_uni"> <label class="text-xs font-bold">VENTA POR UNIDAD</label>
+                        </div>
+                        <button onclick="guardarCatalogo()" class="col-span-2 py-3 bg-slate-800 text-white rounded-2xl font-bold">Guardar en Catálogo</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        // Función para buscar productos en el selector
-        function buscarEnSelector() {
-            let input = document.getElementById('bus_prod').value.toLowerCase();
-            let select = document.getElementById('sel_prod');
-            let options = select.options;
+        let carrito = [];
+
+        function agregarAlCarrito() {
+            let p = document.getElementById('sel_prod').value;
+            let c = document.getElementById('val_cant').value;
+            if(!p || !c) return;
             
-            for (let i = 1; i < options.length; i++) {
-                let txt = options[i].text.toLowerCase();
-                options[i].style.display = txt.includes(input) ? "" : "none";
-                if (txt.includes(input)) select.selectedIndex = i; // Auto-selecciona el primero que encuentra
-            }
+            carrito.push({producto: p, cantidad: c});
+            renderCarrito();
+            document.getElementById('val_cant').value = "";
+        }
+
+        function renderCarrito() {
+            let h = '';
+            carrito.forEach((item, index) => {
+                h += `<tr class="border-b border-slate-200">
+                    <td class="py-2 font-bold">${item.producto}</td>
+                    <td class="py-2">${item.cantidad}g/u</td>
+                    <td class="py-2 text-right"><button onclick="carrito.splice(${index},1);renderCarrito()" class="text-red-500">✕</button></td>
+                </tr>`;
+            });
+            document.getElementById('tabla_carrito').innerHTML = h;
+        }
+
+        function finalizarVenta() {
+            if(carrito.length === 0) return alert("Carrito vacío");
+            let f = new FormData();
+            f.append('carrito', JSON.stringify(carrito));
+            fetch('/registrar_venta_carrito', {method:'POST', body:f}).then(()=>location.reload());
+        }
+
+        function reponerStock() {
+            let f = new FormData();
+            f.append('producto', document.getElementById('stock_prod').value);
+            f.append('cantidad', document.getElementById('stock_cant').value);
+            fetch('/reponer_stock', {method:'POST', body:f}).then(()=>location.reload());
         }
 
         function guardarCatalogo() {
@@ -104,66 +125,17 @@
             f.append('p250', document.getElementById('cat_250').value || 0);
             f.append('p500', document.getElementById('cat_500').value || 0);
             f.append('p1000', document.getElementById('cat_1000').value || 0);
-            // El checkbox necesita convertirse a string 'true' o 'false' para que FastAPI lo entienda
             f.append('unidad', document.getElementById('cat_uni').checked ? 'true' : 'false');
-
-            fetch('/add_producto_catalogo', {method:'POST', body:f})
-            .then(() => { alert("Producto Guardado"); location.reload(); });
+            fetch('/add_producto_catalogo', {method:'POST', body:f}).then(()=>location.reload());
         }
-
-        function realizarVenta() {
-            let p = document.getElementById('sel_prod').value;
-            let c = document.getElementById('val_cant').value;
-            if(!p || !c) return alert("Completa producto y cantidad");
-
-            let f = new FormData();
-            f.append('producto', p);
-            f.append('cantidad', c);
-
-            fetch('/venta_rapida', {method:'POST', body:f})
-            .then(async r => {
-                let res = await r.json();
-                if(r.ok) location.reload();
-                else alert(res.error);
-            });
+        
+        function buscarProd() {
+            let q = document.getElementById('bus_prod').value.toLowerCase();
+            let sel = document.getElementById('sel_prod');
+            for(let opt of sel.options) {
+                opt.style.display = opt.text.toLowerCase().includes(q) ? "" : "none";
+            }
         }
-
-        function reponerStock() {
-            let p = document.getElementById('sel_prod').value;
-            let c = document.getElementById('val_cant').value;
-            if(!p || !c) return alert("Selecciona producto y cantidad a sumar");
-
-            let f = new FormData();
-            f.append('producto', p);
-            f.append('cantidad', c);
-
-            fetch('/reponer_stock', {method:'POST', body:f}).then(() => location.reload());
-        }
-
-        function borrarVenta(id) {
-            if(!confirm("¿Borrar venta?")) return;
-            let f = new FormData(); f.append('id', id);
-            fetch('/borrar_venta', {method:'POST', body:f}).then(() => location.reload());
-        }
-
-        // Carga de datos inicial
-        window.onload = () => {
-            fetch('/dashboard_data').then(r=>r.json()).then(d => {
-                document.getElementById('stat_hoy').innerText = `$${d.hoy}`;
-            });
-
-            fetch('/historial').then(r=>r.json()).then(d => {
-                let html = '';
-                d.historial.forEach(v => {
-                    html += `<tr>
-                        <td class="py-4 font-bold text-slate-700">${v.producto} <span class="text-[10px] text-slate-400 block">${v.cantidad}g/u</span></td>
-                        <td class="py-4 text-green-600 font-black">$${v.total}</td>
-                        <td class="py-4 text-right"><button onclick="borrarVenta(${v.id})" class="text-red-300 hover:text-red-500 font-bold text-xs">ELIMINAR</button></td>
-                    </tr>`;
-                });
-                document.getElementById('lista_historial').innerHTML = html;
-            });
-        };
     </script>
 </body>
 </html>
