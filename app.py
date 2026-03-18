@@ -111,11 +111,13 @@ def ver_historial():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+        # Ajuste para que el historial muestre 'g' o 'u' automáticamente
         cur.execute("""
             SELECT v.id, v.fecha, v.total, 
-            string_agg(d.producto || ' (' || d.cantidad || ')', ', ') as items
+            string_agg(d.producto || ' (' || d.cantidad || (CASE WHEN p.es_unitario THEN 'u' ELSE 'g' END) || ')', ', ') as items
             FROM ventas v 
             LEFT JOIN detalle_venta d ON v.id = d.venta_id
+            LEFT JOIN productos p ON d.producto = p.nombre
             GROUP BY v.id ORDER BY v.fecha DESC LIMIT 50
         """)
         return cur.fetchall()
