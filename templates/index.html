@@ -213,19 +213,48 @@
         }
 
         async function updateStats() {
-            let r = await fetch('/stats_hoy');
-            let d = await r.json();
-            document.getElementById('total_dia').innerText = `$${d.total_dia}`;
-            
-            let rh = await fetch('/historial');
-            let data = await rh.json();
-            let h = '';
-            data.forEach(v => {
-                let fecha = new Date(v.fecha).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                h += `<tr><td class="py-4 font-bold text-slate-400 w-16">${fecha}</td><td class="py-4 font-semibold text-slate-700">${v.items}</td><td class="py-4 font-black text-green-600">$${v.total}</td><td class="py-4 text-right"><button onclick="borrarVenta(${v.id})" class="text-red-200">✕</button></td></tr>`;
-            });
-            document.getElementById('lista_historial').innerHTML = h;
-        }
+        // ... (lo que ya tenías de stats_hoy)
+        let r = await fetch('/stats_hoy');
+        let d = await r.json();
+        document.getElementById('total_dia').innerText = `$${d.total_dia}`;
+        
+        // Nueva lógica de Historial con ID e Impresión
+        let rh = await fetch('/historial');
+        let data = await rh.json();
+        let h = '';
+        data.forEach(v => {
+            h += `
+            <tr class="border-b border-green-50">
+                <td class="py-4 font-black text-green-600/30 text-xs">#${v.id}</td>
+                <td class="py-4 text-[10px] text-slate-400 font-bold">${v.fecha_formateada}</td>
+                <td class="py-4 font-semibold text-slate-700">${v.items}</td>
+                <td class="py-4 font-black text-green-600">$${v.total}</td>
+                <td class="py-4 text-right space-x-2">
+                    <button onclick="imprimirTicket('${v.id}', '${v.fecha_formateada}', '${v.items}', '${v.total}')" class="text-blue-400 hover:text-blue-600 font-bold text-xs uppercase">Imprimir</button>
+                    <button onclick="borrarVenta(${v.id})" class="text-red-200 hover:text-red-400">✕</button>
+                </td>
+            </tr>`;
+        });
+        document.getElementById('lista_historial').innerHTML = h;
+    }
+    
+    function imprimirTicket(id, fecha, items, total) {
+        // Creamos una ventana temporal para el ticket
+        const ventana = window.open('', '_blank', 'height=600,width=400');
+        ventana.document.write('<html><head><title>Ticket Natu</title>');
+        ventana.document.write('<style>body{font-family:monospace; width: 300px; padding: 20px;} .center{text-align:center;} .total{font-size:1.2em; font-weight:bold;}</style>');
+        ventana.document.write('</head><body>');
+        ventana.document.write('<h2 class="center">🌿 NATU</h2>');
+        ventana.document.write('<p class="center">Ticket N°: ' + id + '<br>' + fecha + '</p>');
+        ventana.document.write('<hr>');
+        ventana.document.write('<p>' + items.split(', ').join('<br>') + '</p>');
+        ventana.document.write('<hr>');
+        ventana.document.write('<p class="total">TOTAL: $' + total + '</p>');
+        ventana.document.write('<p class="center">¡Gracias por tu compra!</p>');
+        ventana.document.write('</body></html>');
+        ventana.document.close();
+        ventana.print();
+    }
 
         async function borrarVenta(id) {
             if(!confirm("¿Borrar venta?")) return;
