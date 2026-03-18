@@ -3,233 +3,167 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Natu PRO | Sistema de Gestión</title>
+    <title>Natu PRO | Gestión</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f4f7f6; }
-        .glass-card { @apply bg-white/80 backdrop-blur-md p-6 rounded-[2rem] shadow-xl shadow-slate-200/50 border border-white; }
-        .stat-card { @apply p-5 rounded-3xl transition-all hover:scale-105; }
-        .input-pro { @apply w-full bg-slate-100 border-none p-4 rounded-2xl focus:ring-2 focus:ring-green-500 transition-all outline-none text-slate-700; }
+        .glass-card { @apply bg-white p-6 rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100; }
+        .input-pro { @apply w-full bg-slate-100 border-none p-4 rounded-2xl focus:ring-2 focus:ring-green-500 outline-none text-slate-700; }
     </style>
 </head>
-<body class="p-4 md:p-10 text-slate-800">
+<body class="p-4 md:p-10">
 
     <div class="max-w-7xl mx-auto space-y-8">
-        
-        <!-- Top Bar -->
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-                <h1 class="text-4xl font-extrabold tracking-tight">Natu<span class="text-green-600">PRO</span></h1>
-                <p class="text-slate-500 font-medium">Panel de Control de Ventas y Stock</p>
-            </div>
-            <div class="flex gap-2">
-                <button onclick="location.reload()" class="p-3 bg-white rounded-2xl shadow-sm hover:bg-slate-50">🔄</button>
-                <button onclick="alert('Exportando a CSV...')" class="px-6 py-3 bg-slate-900 text-white rounded-2xl font-bold shadow-lg shadow-slate-300">Descargar Reporte</button>
-            </div>
-        </div>
-
-        <!-- Dashboard Pro -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-2 glass-card">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="font-bold text-lg">Rendimiento Semanal</h3>
-                    <span class="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-bold">ACTIVO</span>
-                </div>
-                <canvas id="ventasChart" height="120"></canvas>
-            </div>
-            
-            <div class="space-y-4">
-                <div class="stat-card bg-green-600 text-white">
-                    <p class="text-xs font-bold uppercase opacity-70">Total del Mes</p>
-                    <h2 id="stat_mes" class="text-3xl font-extrabold">$0</h2>
-                </div>
-                <div class="stat-card bg-white shadow-sm border border-slate-100">
-                    <p class="text-xs font-bold uppercase text-slate-400">Producto Estrella</p>
-                    <h2 id="stat_top" class="text-xl font-extrabold text-slate-800">Cargando...</h2>
-                </div>
-                <div id="alerta_stock" class="stat-card bg-orange-50 border border-orange-100 hidden">
-                    <p class="text-xs font-bold uppercase text-orange-600">⚠️ Reponer Stock</p>
-                    <p id="bajos_lista" class="text-sm font-bold text-orange-800"></p>
+        <!-- Header -->
+        <div class="flex justify-between items-center">
+            <h1 class="text-3xl font-extrabold italic">🌿 Natu<span class="text-green-600">PRO</span></h1>
+            <div class="flex gap-4">
+                <div class="text-right">
+                    <p class="text-xs text-slate-400 font-bold uppercase">Hoy</p>
+                    <h2 id="stat_hoy" class="text-2xl font-black text-slate-800">$0</h2>
                 </div>
             </div>
         </div>
 
-        <!-- Operaciones Principales -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            
-            <!-- Venta Rapida -->
+            <!-- SECCIÓN VENTAS -->
             <div class="glass-card space-y-6">
-                <div class="flex items-center gap-3">
-                    <div class="p-3 bg-green-100 rounded-2xl text-xl">🛒</div>
-                    <h3 class="font-extrabold text-xl">Venta Rápida</h3>
-                </div>
-                <div class="space-y-4">
-                    <div class="relative">
-                        <select id="sel_prod" class="input-pro appearance-none cursor-pointer">
-                            <option value="">Selecciona un producto...</option>
-                            {% for p in productos %}
-                            <option value="{{p.nombre}}">{{p.nombre}} (Disp: {{p.stock_gramos}})</option>
-                            {% endfor %}
-                        </select>
-                        <div class="absolute right-4 top-4 pointer-events-none opacity-40">▼</div>
-                    </div>
-                    <input type="number" id="val_cant" placeholder="Cantidad (Gramos o Unidades)" class="input-pro">
-                    <button onclick="realizarVenta()" class="w-full py-5 bg-green-600 hover:bg-green-700 text-white rounded-[1.5rem] font-extrabold text-xl shadow-xl shadow-green-200 transition-all active:scale-95">
-                        Registrar Venta
-                    </button>
-                </div>
+                <h3 class="font-bold text-xl flex items-center gap-2">🛒 Nueva Venta</h3>
+                
+                <!-- Buscador de productos -->
+                <input type="text" id="bus_prod" onkeyup="buscarEnSelector()" placeholder="🔍 Buscar producto..." class="input-pro text-sm border-2 border-green-100 bg-white">
+                
+                <select id="sel_prod" class="input-pro">
+                    <option value="">Seleccionar producto...</option>
+                    {% for p in productos %}
+                    <option value="{{p.nombre}}">{{p.nombre}} (Stock: {{p.stock_gramos}})</option>
+                    {% endfor %}
+                </select>
+
+                <input type="number" id="val_cant" placeholder="Cantidad (Gramos o Unidades)" class="input-pro">
+                <button onclick="realizarVenta()" class="w-full py-5 bg-green-600 hover:bg-green-700 text-white rounded-3xl font-bold text-xl shadow-lg shadow-green-200 transition-all">Registrar Venta</button>
             </div>
 
-            <!-- Gestión de Stock -->
-            <div class="glass-card space-y-6">
-                <div class="flex items-center gap-3">
-                    <div class="p-3 bg-blue-100 rounded-2xl text-xl">📦</div>
-                    <h3 class="font-extrabold text-xl">Catálogo y Stock</h3>
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <input id="cat_nom" placeholder="Nuevo Producto" class="col-span-2 input-pro">
+            <!-- SECCIÓN CATÁLOGO -->
+            <div class="glass-card space-y-4">
+                <h3 class="font-bold text-xl">📦 Cargar Producto / Precios</h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <input id="cat_nom" placeholder="Nombre del producto" class="col-span-2 input-pro">
                     <input id="cat_100" type="number" placeholder="$ 100g" class="input-pro text-sm">
                     <input id="cat_250" type="number" placeholder="$ 250g" class="input-pro text-sm">
                     <input id="cat_500" type="number" placeholder="$ 500g" class="input-pro text-sm">
                     <input id="cat_1000" type="number" placeholder="$ 1kg / Uni" class="input-pro text-sm">
-                    <div class="col-span-2 flex items-center gap-3 p-2 bg-slate-50 rounded-2xl">
-                        <input type="checkbox" id="cat_uni" class="w-6 h-6 accent-green-600">
-                        <label for="cat_uni" class="text-sm font-bold text-slate-500 uppercase">Es venta por Unidad</label>
+                    <div class="col-span-2 flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
+                        <input type="checkbox" id="cat_uni" class="w-5 h-5 accent-green-600">
+                        <label for="cat_uni" class="text-sm font-bold text-slate-500 uppercase italic">Venta por Unidad</label>
                     </div>
-                    <button onclick="guardarCatalogo()" class="col-span-1 py-4 bg-slate-900 text-white rounded-2xl font-bold">Guardar</button>
-                    <button onclick="reponer()" class="col-span-1 py-4 bg-blue-600 text-white rounded-2xl font-bold">Sumar Stock</button>
+                    <button onclick="guardarCatalogo()" class="col-span-1 py-4 bg-slate-800 text-white rounded-2xl font-bold">Guardar</button>
+                    <button onclick="reponerStock()" class="col-span-1 py-4 bg-blue-600 text-white rounded-2xl font-bold">Sumar Stock</button>
                 </div>
             </div>
         </div>
 
-        <!-- Historial Mejorado -->
+        <!-- HISTORIAL -->
         <div class="glass-card">
-            <div class="flex flex-col md:flex-row justify-between mb-6 gap-4">
-                <h3 class="font-extrabold text-xl">Últimos Movimientos</h3>
-                <input type="text" id="busqueda" onkeyup="filtrarTabla()" placeholder="Buscar producto o ID..." class="bg-slate-100 px-4 py-2 rounded-xl text-sm outline-none w-full md:w-64">
-            </div>
+            <h3 class="font-bold text-xl mb-6">📋 Historial de hoy</h3>
             <div class="overflow-x-auto">
-                <table class="w-full">
+                <table class="w-full text-left">
                     <thead>
-                        <tr class="text-slate-400 text-xs font-bold uppercase tracking-widest border-b border-slate-100">
-                            <th class="pb-4 text-left">Venta</th>
-                            <th class="pb-4 text-left">Producto</th>
-                            <th class="pb-4 text-left">Monto</th>
-                            <th class="pb-4 text-right">Acción</th>
+                        <tr class="text-slate-400 text-xs font-bold uppercase border-b">
+                            <th class="pb-3">Producto</th>
+                            <th class="pb-3">Monto</th>
+                            <th class="pb-3 text-right">Acción</th>
                         </tr>
                     </thead>
-                    <tbody id="lista_historial" class="divide-y divide-slate-50">
-                        <!-- JS -->
-                    </tbody>
+                    <tbody id="lista_historial" class="divide-y divide-slate-100"></tbody>
                 </table>
             </div>
         </div>
-
     </div>
 
     <script>
-        // --- INICIALIZACIÓN DE GRÁFICO ---
-        function initChart() {
-            fetch('/chart_data').then(r=>r.json()).then(data => {
-                const ctx = document.getElementById('ventasChart').getContext('2d');
-                new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: data.map(d => d.dia),
-                        datasets: [{
-                            label: 'Ventas ($)',
-                            data: data.map(d => d.suma),
-                            borderColor: '#16a34a',
-                            backgroundColor: 'rgba(22, 163, 74, 0.1)',
-                            fill: true,
-                            tension: 0.4,
-                            borderWidth: 4,
-                            pointRadius: 0
-                        }]
-                    },
-                    options: { plugins: { legend: { display: false } }, scales: { y: { display: false }, x: { grid: { display: false } } } }
-                });
-            });
-        }
-
-        // --- FUNCIONES DE FILTRADO ---
-        function filtrarTabla() {
-            let input = document.getElementById("busqueda").value.toUpperCase();
-            let rows = document.getElementById("lista_historial").getElementsByTagName("tr");
-            for (let i = 0; i < rows.length; i++) {
-                let txt = rows[i].textContent || rows[i].innerText;
-                rows[i].style.display = txt.toUpperCase().indexOf(input) > -1 ? "" : "none";
-            }
-        }
-
-        // Mantenemos las funciones de realizarVenta, reponer, etc. (ajustadas para que el feedback sea mejor)
-        function realizarVenta() {
-            const btn = event.target;
-            btn.innerText = "Procesando...";
-            let f = new FormData();
-            f.append('producto', document.getElementById('sel_prod').value);
-            f.append('cantidad', document.getElementById('val_cant').value);
-            fetch('/venta_rapida', {method:'POST', body:f}).then(async r => {
-                if(!r.ok) { let e = await r.json(); alert(e.error); btn.innerText = "Registrar Venta"; }
-                else location.reload();
-            });
-        }
-
-        // Carga inicial de datos
-        function loadAll() {
-            initChart();
-            fetch('/dashboard_data').then(r=>r.json()).then(d=>{
-                document.getElementById('stat_mes').innerText = `$${d.mes}`;
-                document.getElementById('stat_top').innerText = d.top_prod;
-                if(d.bajos.length > 0) {
-                    document.getElementById('alerta_stock').classList.remove('hidden');
-                    document.getElementById('bajos_lista').innerText = d.bajos.map(b => b.nombre).join(', ');
-                }
-            });
+        // Función para buscar productos en el selector
+        function buscarEnSelector() {
+            let input = document.getElementById('bus_prod').value.toLowerCase();
+            let select = document.getElementById('sel_prod');
+            let options = select.options;
             
-            fetch('/historial').then(r=>r.json()).then(d=>{
-                let h = '';
-                d.historial.forEach(v => {
-                    h += `<tr class="hover:bg-slate-50 transition-colors">
-                        <td class="py-5 font-mono text-xs text-slate-400">#${v.id}</td>
-                        <td class="py-5 font-bold">${v.producto} <span class="block text-[10px] text-slate-400 font-normal uppercase">${v.cantidad}g/u • ${new Date(v.fecha).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></td>
-                        <td class="py-5 text-green-600 font-extrabold">$${v.total}</td>
-                        <td class="py-5 text-right">
-                            <button onclick="borrarVenta(${v.id})" class="text-xs font-bold text-red-300 hover:text-red-500 transition-colors">ELIMINAR</button>
-                        </td>
-                    </tr>`;
-                });
-                document.getElementById('lista_historial').innerHTML = h;
-            });
+            for (let i = 1; i < options.length; i++) {
+                let txt = options[i].text.toLowerCase();
+                options[i].style.display = txt.includes(input) ? "" : "none";
+                if (txt.includes(input)) select.selectedIndex = i; // Auto-selecciona el primero que encuentra
+            }
         }
 
         function guardarCatalogo() {
             let f = new FormData();
             f.append('nombre', document.getElementById('cat_nom').value);
-            f.append('p100', document.getElementById('cat_100').value);
-            f.append('p250', document.getElementById('cat_250').value);
-            f.append('p500', document.getElementById('cat_500').value);
-            f.append('p1000', document.getElementById('cat_1000').value);
-            f.append('unidad', document.getElementById('cat_uni').checked);
-            fetch('/add_producto_catalogo', {method:'POST', body:f}).then(()=>location.reload());
+            f.append('p100', document.getElementById('cat_100').value || 0);
+            f.append('p250', document.getElementById('cat_250').value || 0);
+            f.append('p500', document.getElementById('cat_500').value || 0);
+            f.append('p1000', document.getElementById('cat_1000').value || 0);
+            // El checkbox necesita convertirse a string 'true' o 'false' para que FastAPI lo entienda
+            f.append('unidad', document.getElementById('cat_uni').checked ? 'true' : 'false');
+
+            fetch('/add_producto_catalogo', {method:'POST', body:f})
+            .then(() => { alert("Producto Guardado"); location.reload(); });
         }
 
-        function reponer() {
+        function realizarVenta() {
+            let p = document.getElementById('sel_prod').value;
+            let c = document.getElementById('val_cant').value;
+            if(!p || !c) return alert("Completa producto y cantidad");
+
             let f = new FormData();
-            f.append('producto', document.getElementById('sel_prod').value);
-            f.append('cantidad', document.getElementById('val_cant').value || alert("Usa el cuadro de cantidad para sumar stock"));
-            fetch('/reponer_stock', {method:'POST', body:f}).then(()=>location.reload());
+            f.append('producto', p);
+            f.append('cantidad', c);
+
+            fetch('/venta_rapida', {method:'POST', body:f})
+            .then(async r => {
+                let res = await r.json();
+                if(r.ok) location.reload();
+                else alert(res.error);
+            });
+        }
+
+        function reponerStock() {
+            let p = document.getElementById('sel_prod').value;
+            let c = document.getElementById('val_cant').value;
+            if(!p || !c) return alert("Selecciona producto y cantidad a sumar");
+
+            let f = new FormData();
+            f.append('producto', p);
+            f.append('cantidad', c);
+
+            fetch('/reponer_stock', {method:'POST', body:f}).then(() => location.reload());
         }
 
         function borrarVenta(id) {
             if(!confirm("¿Borrar venta?")) return;
             let f = new FormData(); f.append('id', id);
-            fetch('/borrar_venta', {method:'POST', body:f}).then(()=>location.reload());
+            fetch('/borrar_venta', {method:'POST', body:f}).then(() => location.reload());
         }
 
-        window.onload = loadAll;
+        // Carga de datos inicial
+        window.onload = () => {
+            fetch('/dashboard_data').then(r=>r.json()).then(d => {
+                document.getElementById('stat_hoy').innerText = `$${d.hoy}`;
+            });
+
+            fetch('/historial').then(r=>r.json()).then(d => {
+                let html = '';
+                d.historial.forEach(v => {
+                    html += `<tr>
+                        <td class="py-4 font-bold text-slate-700">${v.producto} <span class="text-[10px] text-slate-400 block">${v.cantidad}g/u</span></td>
+                        <td class="py-4 text-green-600 font-black">$${v.total}</td>
+                        <td class="py-4 text-right"><button onclick="borrarVenta(${v.id})" class="text-red-300 hover:text-red-500 font-bold text-xs">ELIMINAR</button></td>
+                    </tr>`;
+                });
+                document.getElementById('lista_historial').innerHTML = html;
+            });
+        };
     </script>
 </body>
 </html>
