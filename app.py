@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 import psycopg2
+from psycopg2.extras import RealDictCursor
 import os
 from datetime import datetime
 
@@ -10,58 +11,28 @@ app = FastAPI()
 DATABASE_URL = "postgresql://postgres.tcdkapcrcntrawckkaex:Samirphite2006@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
 
 def get_db_connection():
-    return psycopg2.connect(DATABASE_URL)
+    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 def init_db():
     conn = get_db_connection()
     cur = conn.cursor()
-
+    # Agregamos 'es_unidad' para distinguir productos pesables de fijos
     cur.execute("""
     CREATE TABLE IF NOT EXISTS productos (
         id SERIAL PRIMARY KEY,
         nombre TEXT UNIQUE,
-        precio_100 REAL,
-        precio_250 REAL,
-        precio_500 REAL,
-        precio_1000 REAL,
+        p_100 REAL, p_250 REAL, p_500 REAL, p_1000 REAL,
+        es_unidad BOOLEAN DEFAULT FALSE,
         stock_gramos INTEGER DEFAULT 0
     );
     """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS ventas (
-        id SERIAL PRIMARY KEY,
-        fecha TIMESTAMP,
-        total REAL
-    );
-    """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS detalle_venta (
-        id SERIAL PRIMARY KEY,
-        venta_id INTEGER,
-        producto TEXT,
-        gramos INTEGER,
-        precio REAL
-    );
-    """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS movimientos_stock (
-        id SERIAL PRIMARY KEY,
-        producto TEXT,
-        cantidad INTEGER,
-        tipo TEXT,
-        fecha TIMESTAMP
-    );
-    """)
-
+    cur.execute("CREATE TABLE IF NOT EXISTS ventas (id SERIAL PRIMARY KEY, fecha TIMESTAMP DEFAULT NOW(), total REAL DEFAULT 0);")
+    cur.execute("CREATE TABLE IF NOT EXISTS detalle_venta (id SERIAL PRIMARY KEY, venta_id INTEGER, producto TEXT, cantidad INTEGER, subtotal REAL);")
     conn.commit()
     cur.close()
     conn.close()
 
 init_db()
-
 templates = Jinja2Templates(directory="templates")
 
 @app.get("/", response_class=HTMLResponse)
@@ -69,91 +40,87 @@ def home(request: Request):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("SELECT * FROM productos ORDER BY nombre")
-    productos = cur.fetchall()
+    prods = cur.fetchall()
     cur.close()
     conn.close()
-    return templates.TemplateResponse("index.html", {"request": request, "productos": productos})
+    return templates.TemplateResponse("index.html", {"request": request, "productos": prods})
 
-@app.get("/dashboard")
-def dashboard():
+@app.post("/add_producto_catalogo")
+def add_catalogo(nombre: str = Form(...), p100: float = Form(...), p250: float = Form(...), p500: float = Form(...), p1000: float = Form(...), unidad: bool = Form(False)):
     conn = get_db_connection()
     cur = conn.cursor()
-
-    cur.execute("SELECT COALESCE(SUM(total),0) FROM ventas WHERE DATE(fecha)=CURRENT_DATE")
-    hoy = cur.fetchone()[0]
-
-    cur.execute("SELECT COALESCE(SUM(total),0) FROM ventas WHERE date_trunc('month', fecha)=date_trunc('month', CURRENT_DATE)")
-    mes = cur.fetchone()[0]
-
-    cur.close()
-    conn.close()
-    return {"hoy": hoy, "mes": mes}
-
-@app.get("/nueva_venta")
-def nueva_venta():
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("INSERT INTO ventas(fecha,total) VALUES(NOW(),0) RETURNING id")
-    vid = cur.fetchone()[0]
+    cur.execute("INSERT INTO productos (nombre, p_100, p_250, p_500, p_1000, es_unidad) VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (nombre) DO UPDATE SET p_100=EXCLUDED.p_100, p_250=EXCLUDED.p_250, p_500=EXCLUDED.p_500, p_1000=EXCLUDED.p_1000", (nombre, p100, p250, p500, p1000, unidad))
     conn.commit()
     cur.close()
     conn.close()
-    return {"venta_id": vid}
+    return {"ok": True}
 
-@app.post("/agregar_producto")
-def agregar_producto(venta_id: int = Form(...), producto: str = Form(...), gramos: int = Form(...)):
+@app.post("/venta_rapida")
+def venta_rapida(producto: str = Form(...), cantidad: int = Form(...)):
     conn = get_db_connection()
     cur = conn.cursor()
-
-    cur.execute("SELECT precio_100,precio_250,precio_500,precio_1000,stock_gramos FROM productos WHERE nombre=%s",(producto,))
+    # 1. Buscar precio y stock
+    cur.execute("SELECT * FROM productos WHERE nombre=%s", (producto,))
     p = cur.fetchone()
-
-    if not p:
-        return {"error":"Producto no encontrado"}
-
-    if p[4] < gramos:
-        return {"error":"Stock insuficiente"}
-
-    if gramos <= 100:
-        precio = p[0]
-    elif gramos <= 250:
-        precio = p[1]
-    elif gramos <= 500:
-        precio = p[2]
+    
+    if p['stock_gramos'] < cantidad: return {"error": "Sin stock"}
+    
+    # 2. Calcular precio según escala
+    if p['es_unidad']: precio = p['p_1000'] * cantidad
     else:
-        precio = p[3]
+        if cantidad <= 100: precio = p['p_100']
+        elif cantidad <= 250: precio = p['p_250']
+        elif cantidad <= 500: precio = p['p_500']
+        else: precio = p['p_1000']
 
-    cur.execute("INSERT INTO detalle_venta VALUES(DEFAULT,%s,%s,%s,%s)",(venta_id,producto,gramos,precio))
-
-    cur.execute("UPDATE productos SET stock_gramos=stock_gramos-%s WHERE nombre=%s",(gramos,producto))
-
-    cur.execute("INSERT INTO movimientos_stock(producto,cantidad,tipo,fecha) VALUES(%s,%s,'venta',NOW())",(producto,-gramos))
-
+    # 3. Registrar Venta
+    cur.execute("INSERT INTO ventas (total) VALUES (%s) RETURNING id", (precio,))
+    vid = cur.fetchone()['id']
+    cur.execute("INSERT INTO detalle_venta (venta_id, producto, cantidad, subtotal) VALUES (%s,%s,%s,%s)", (vid, producto, cantidad, precio))
+    cur.execute("UPDATE productos SET stock_gramos = stock_gramos - %s WHERE nombre = %s", (cantidad, producto))
+    
     conn.commit()
     cur.close()
     conn.close()
-    return {"subtotal": precio}
+    return {"ok": True}
 
-@app.post("/reponer_stock")
-def reponer(producto: str = Form(...), cantidad: int = Form(...)):
+@app.get("/historial")
+def historial():
     conn = get_db_connection()
     cur = conn.cursor()
+    cur.execute("""
+        SELECT v.id, v.fecha, v.total, d.producto, d.cantidad 
+        FROM ventas v JOIN detalle_venta d ON v.id = d.venta_id 
+        ORDER BY v.fecha DESC LIMIT 50
+    """)
+    res = cur.fetchall()
+    cur.close()
+    conn.close()
+    return {"historial": res}
 
-    cur.execute("UPDATE productos SET stock_gramos=stock_gramos+%s WHERE nombre=%s",(cantidad,producto))
-
-    cur.execute("INSERT INTO movimientos_stock(producto,cantidad,tipo,fecha) VALUES(%s,%s,'reposicion',NOW())",(producto,cantidad))
-
+@app.post("/borrar_venta")
+def borrar(id: int = Form(...)):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    # Devolver stock antes de borrar
+    cur.execute("SELECT producto, cantidad FROM detalle_venta WHERE venta_id=%s", (id,))
+    det = cur.fetchone()
+    if det:
+        cur.execute("UPDATE productos SET stock_gramos = stock_gramos + %s WHERE nombre=%s", (det['cantidad'], det['producto']))
+    cur.execute("DELETE FROM ventas WHERE id=%s", (id,))
     conn.commit()
     cur.close()
     conn.close()
-    return {"ok":True}
+    return {"ok": True}
 
-@app.get("/movimientos")
-def movimientos():
+@app.get("/stats")
+def stats():
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT producto,cantidad,tipo,fecha FROM movimientos_stock ORDER BY fecha DESC LIMIT 20")
-    data = cur.fetchall()
+    cur.execute("SELECT SUM(total) as hoy FROM ventas WHERE DATE(fecha) = CURRENT_DATE")
+    hoy = cur.fetchone()['hoy'] or 0
+    cur.execute("SELECT COUNT(*) as cant FROM ventas WHERE DATE(fecha) = CURRENT_DATE")
+    cant = cur.fetchone()['cant'] or 0
     cur.close()
     conn.close()
-    return {"movimientos": data}
+    return {"hoy": hoy, "ventas_n": cant}
