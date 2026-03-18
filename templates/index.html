@@ -109,19 +109,39 @@
                     </div>
                 </div>
 
-                <!-- CATÁLOGO -->
-                <div class="glass-card">
-                    <h3 class="font-bold mb-4 text-slate-600 text-sm">⚙️ Nuevo Producto</h3>
-                    <div class="grid grid-cols-2 gap-2">
-                        <input id="cat_nom" placeholder="Nombre" class="col-span-2 input-pastel text-sm">
-                        <input id="cat_100" type="number" placeholder="$ 100g" class="input-pastel text-[10px]">
-                        <input id="cat_1000" type="number" placeholder="$ 1kg/U" class="input-pastel text-[10px]">
-                        <div class="col-span-2 flex items-center gap-2 p-2 bg-slate-50 rounded-xl">
-                            <input type="checkbox" id="cat_uni"> <label class="text-[10px] font-bold text-slate-400">ES POR UNIDAD</label>
-                        </div>
-                        <button onclick="guardarCat()" class="col-span-2 bg-slate-200 text-slate-700 py-3 rounded-xl font-bold text-xs">Guardar</button>
-                    </div>
+        <div class="glass-card">
+            <h3 class="font-bold mb-4 text-slate-600 text-sm">⚙️ Configurar Catálogo</h3>
+            <div class="grid grid-cols-2 gap-2">
+                <input id="cat_nom" placeholder="Nombre del producto" class="col-span-2 input-pastel text-sm shadow-sm">
+                
+                <div class="space-y-1">
+                    <label class="text-[9px] font-black text-green-600 ml-2 uppercase">Precio 100g</label>
+                    <input id="cat_100" type="number" placeholder="$ 100g" class="input-pastel text-xs">
                 </div>
+                
+                <div class="space-y-1">
+                    <label class="text-[9px] font-black text-green-600 ml-2 uppercase">Precio 250g</label>
+                    <input id="cat_250" type="number" placeholder="$ 250g" class="input-pastel text-xs">
+                </div>
+                
+                <div class="space-y-1">
+                    <label class="text-[9px] font-black text-green-600 ml-2 uppercase">Precio 500g</label>
+                    <input id="cat_500" type="number" placeholder="$ 500g" class="input-pastel text-xs">
+                </div>
+                
+                <div class="space-y-1">
+                    <label class="text-[9px] font-black text-green-600 ml-2 uppercase">Precio 1kg / Uni</label>
+                    <input id="cat_1000" type="number" placeholder="$ 1kg" class="input-pastel text-xs">
+                </div>
+        
+                <div class="col-span-2 flex items-center gap-2 p-3 bg-white/50 rounded-xl border border-green-50 mt-2">
+                    <input type="checkbox" id="cat_uni" class="w-4 h-4 accent-green-500"> 
+                    <label for="cat_uni" class="text-[10px] font-bold text-slate-400 uppercase cursor-pointer">Es venta por unidad</label>
+                </div>
+                
+                <button onclick="guardarCat()" class="col-span-2 btn-pastel-green text-xs py-4 mt-2">
+                    Guardar en Catálogo
+                </button>
             </div>
         </div>
     </div>
@@ -162,14 +182,19 @@
         }
 
         async function guardarCat() {
-            let f = new FormData();
-            f.append('nombre', document.getElementById('cat_nom').value);
-            f.append('p100', document.getElementById('cat_100').value || 0);
-            f.append('p250', 0); f.append('p500', 0); // Simplificado para el ejemplo
-            f.append('p1000', document.getElementById('cat_1000').value || 0);
-            f.append('unidad', document.getElementById('cat_uni').checked);
-            await fetch('/catalogo', {method:'POST', body:f});
+        let f = new FormData();
+        f.append('nombre', document.getElementById('cat_nom').value);
+        f.append('p100', document.getElementById('cat_100').value || 0);
+        f.append('p250', document.getElementById('cat_250').value || 0);
+        f.append('p500', document.getElementById('cat_500').value || 0);
+        f.append('p1000', document.getElementById('cat_1000').value || 0);
+        f.append('unidad', document.getElementById('cat_uni').checked);
+        
+        let r = await fetch('/catalogo', {method:'POST', body:f});
+        if(r.ok) {
+            alert("Producto actualizado correctamente");
             location.reload();
+            }
         }
 
         async function borrarProd(nombre) {
