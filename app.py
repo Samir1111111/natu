@@ -143,3 +143,31 @@ def borrar_venta(id: int = Form(...)):
         return {"status": "ok"}
     finally:
         if conn: conn.close()
+
+    # --- AGREGAR ESTAS RUTAS AL APP.PY ---
+
+@app.get("/stats_hoy")
+def stats_hoy():
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        # Suma el total de las ventas cuya fecha sea hoy
+        cur.execute("SELECT COALESCE(SUM(total), 0) as total_dia, COUNT(*) as cantidad_ventas FROM ventas WHERE DATE(fecha) = CURRENT_DATE")
+        return cur.fetchone()
+    finally:
+        if conn: conn.close()
+
+@app.post("/borrar_producto")
+def borrar_producto(nombre: str = Form(...)):
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        # Borra el producto (esto fallará si tiene ventas asociadas a menos que uses CASCADE o limpies historial)
+        # Por seguridad, el SQL que ejecutamos antes ya maneja las relaciones.
+        cur.execute("DELETE FROM productos WHERE nombre = %s", (nombre,))
+        conn.commit()
+        return {"status": "ok"}
+    finally:
+        if conn: conn.close()
