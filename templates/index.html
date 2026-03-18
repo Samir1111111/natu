@@ -2,264 +2,202 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Natu PRO</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NatuPRO POS</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #f8fafc; }
+        .card { @apply bg-white p-6 rounded-3xl shadow-sm border border-slate-200; }
+        .btn-primary { @apply bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-2xl transition-all active:scale-95; }
+        @media print { .no-print { display: none; } body { background: white; } .card { border: none; shadow: none; } }
+    </style>
 </head>
+<body class="p-4 lg:p-10">
 
-<body class="bg-gray-100 p-6">
+    <div class="max-w-7xl mx-auto space-y-8 no-print">
+        <header class="flex justify-between items-center">
+            <h1 class="text-4xl font-black tracking-tighter text-slate-800">Natu<span class="text-green-600">PRO</span></h1>
+            <div id="reloj" class="font-mono text-slate-400"></div>
+        </header>
 
-<div class="max-w-5xl mx-auto space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- 🛒 CARRITO DE VENTAS -->
+            <div class="lg:col-span-2 card space-y-6">
+                <h2 class="text-xl font-bold flex items-center gap-2">🛒 Nueva Venta</h2>
+                <div class="flex gap-4">
+                    <div class="flex-1">
+                        <input type="text" id="bus_prod" onkeyup="filtrar()" placeholder="🔍 Buscar producto..." class="w-full p-3 bg-slate-100 rounded-xl mb-2 outline-none">
+                        <select id="sel_prod" class="w-full p-4 bg-slate-100 rounded-2xl font-bold">
+                            <option value="">Seleccionar producto...</option>
+                            {% for p in productos %}
+                            <option value="{{p.nombre}}">{{p.nombre}} (Stock: {{p.stock}})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="w-32">
+                        <input type="number" id="val_cant" placeholder="Cant." class="w-full p-4 bg-slate-100 rounded-2xl font-bold">
+                    </div>
+                    <button onclick="addCarrito()" class="btn-primary px-8">＋</button>
+                </div>
 
-    <!-- 🛒 CARRITO -->
-    <div class="bg-white p-6 rounded-xl shadow">
-        <h2 class="text-xl font-bold mb-4">🛒 Nueva Venta</h2>
+                <div class="overflow-hidden rounded-2xl border border-slate-100">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50 text-slate-400 text-xs uppercase font-bold">
+                            <tr><th class="p-4">Producto</th><th class="p-4">Cantidad</th><th class="p-4 text-right">Quitar</th></tr>
+                        </thead>
+                        <tbody id="lista_carrito"></tbody>
+                    </table>
+                </div>
+                <button onclick="enviarVenta()" class="w-full btn-primary text-xl py-5 shadow-xl shadow-green-100">REGISTRAR VENTA</button>
+            </div>
 
-        <div class="flex gap-2 mb-4">
-            <select id="sel_prod" class="border p-2 rounded w-full">
-                <option value="">Seleccionar producto</option>
-                {% for p in productos %}
-                <option value="{{p.nombre}}">
-                    {{p.nombre}} (Stock: {{p.stock_gramos}}g)
-                </option>
-                {% endfor %}
-            </select>
+            <div class="space-y-8">
+                <!-- 📦 REPOSICIÓN DE STOCK -->
+                <div class="card border-blue-100 bg-blue-50/30">
+                    <h3 class="font-bold text-blue-700 mb-4">📦 Reponer Stock</h3>
+                    <div class="space-y-3">
+                        <select id="rep_prod" class="w-full p-3 rounded-xl border-none">
+                            {% for p in productos %}
+                            <option value="{{p.nombre}}">{{p.nombre}}</option>
+                            {% endfor %}
+                        </select>
+                        <input type="number" id="rep_cant" placeholder="Cantidad a sumar" class="w-full p-3 rounded-xl border-none">
+                        <button onclick="reponer()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700">Actualizar Stock</button>
+                    </div>
+                </div>
 
-            <input type="number" id="val_cant" placeholder="Cantidad (g/u)" class="border p-2 rounded w-40">
-
-            <button onclick="agregarAlCarrito()" class="bg-green-600 text-white px-4 rounded">
-                Agregar
-            </button>
+                <!-- ⚙️ CONFIGURACIÓN CATÁLOGO -->
+                <div class="card">
+                    <h3 class="font-bold mb-4">⚙️ Catálogo / Precios</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input id="cat_nom" placeholder="Nombre" class="col-span-2 p-3 bg-slate-100 rounded-xl">
+                        <input id="cat_100" type="number" placeholder="$ 100g" class="p-3 bg-slate-100 rounded-xl text-sm">
+                        <input id="cat_250" type="number" placeholder="$ 250g" class="p-3 bg-slate-100 rounded-xl text-sm">
+                        <input id="cat_500" type="number" placeholder="$ 500g" class="p-3 bg-slate-100 rounded-xl text-sm">
+                        <input id="cat_1000" type="number" placeholder="$ 1kg/Uni" class="p-3 bg-slate-100 rounded-xl text-sm">
+                        <div class="col-span-2 flex items-center gap-2 p-2">
+                            <input type="checkbox" id="cat_uni" class="w-5 h-5"> <label class="text-xs font-bold text-slate-500 uppercase">Venta por unidad</label>
+                        </div>
+                        <button onclick="guardarCat()" class="col-span-2 bg-slate-800 text-white py-3 rounded-xl font-bold">Guardar Producto</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <table class="w-full text-left border">
-            <thead class="bg-gray-200">
-                <tr>
-                    <th class="p-2">Producto</th>
-                    <th class="p-2">Cantidad</th>
-                    <th class="p-2"></th>
-                </tr>
-            </thead>
-            <tbody id="tabla_carrito"></tbody>
-        </table>
-
-        <button onclick="finalizarVenta()" class="mt-4 w-full bg-green-700 text-white p-3 rounded">
-            Finalizar Venta
-        </button>
-    </div>
-
-    <!-- 📦 STOCK -->
-    <div class="bg-white p-6 rounded-xl shadow">
-        <h2 class="text-xl font-bold mb-4">📦 Reponer Stock</h2>
-
-        <div class="flex gap-2">
-            <select id="stock_prod" class="border p-2 rounded w-full">
-                {% for p in productos %}
-                <option value="{{p.nombre}}">{{p.nombre}}</option>
-                {% endfor %}
-            </select>
-
-            <input type="number" id="stock_cant" placeholder="Cantidad" class="border p-2 rounded w-40">
-
-            <button onclick="reponerStock()" class="bg-blue-600 text-white px-4 rounded">
-                Reponer
-            </button>
+        <!-- 📋 HISTORIAL -->
+        <div class="card">
+            <h2 class="text-xl font-bold mb-6">📋 Historial de Ventas</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-slate-400 border-b">
+                            <th class="pb-4">Fecha/Hora</th><th class="pb-4">Productos</th><th class="pb-4">Total</th><th class="pb-4 text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lista_historial" class="divide-y"></tbody>
+                </table>
+            </div>
         </div>
     </div>
 
-    <!-- ⚙️ PRODUCTOS -->
-    <div class="bg-white p-6 rounded-xl shadow">
-        <h2 class="text-xl font-bold mb-4">⚙️ Nuevo Producto</h2>
-
-        <div class="grid grid-cols-2 gap-2">
-            <input id="cat_nom" placeholder="Nombre" class="border p-2 rounded col-span-2">
-
-            <input id="cat_100" type="number" placeholder="Precio 100g" class="border p-2 rounded">
-            <input id="cat_250" type="number" placeholder="Precio 250g" class="border p-2 rounded">
-            <input id="cat_500" type="number" placeholder="Precio 500g" class="border p-2 rounded">
-            <input id="cat_1000" type="number" placeholder="Precio 1kg / unidad" class="border p-2 rounded">
-
-            <label class="col-span-2 flex items-center gap-2">
-                <input type="checkbox" id="cat_uni"> Venta por unidad
-            </label>
-
-            <button onclick="guardarCatalogo()" class="bg-black text-white p-3 rounded col-span-2">
-                Guardar Producto
-            </button>
-        </div>
+    <!-- VISTA DE IMPRESIÓN (OCULTA) -->
+    <div id="ticket" class="hidden print:block text-xs w-64 p-4 font-mono">
+        <h2 class="text-center font-bold">NatuPRO</h2>
+        <p class="text-center">------------------------</p>
+        <div id="ticket_items"></div>
+        <p class="text-center">------------------------</p>
+        <p class="font-bold text-lg">TOTAL: <span id="ticket_total"></span></p>
     </div>
 
+    <script>
+        let carrito = [];
 
-    <div class="bg-white p-6 rounded-xl shadow">
-        <h2 class="text-xl font-bold mb-4">📊 Historial de Ventas</h2>
-    
-        <table class="w-full text-sm">
-            <thead class="bg-gray-200">
-                <tr>
-                    <th>ID</th>
-                    <th>Fecha</th>
-                    <th>Total</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody id="historial_tabla"></tbody>
-        </table>
-    </div>
-</div>
-<script>
-let carrito = [];
+        function filtrar() {
+            let q = document.getElementById('bus_prod').value.toLowerCase();
+            let sel = document.getElementById('sel_prod');
+            for(let o of sel.options) o.style.display = o.text.toLowerCase().includes(q) ? "" : "none";
+        }
 
-function agregarAlCarrito() {
-    let p = document.getElementById('sel_prod').value;
-    let c = parseInt(document.getElementById('val_cant').value);
+        function addCarrito() {
+            let n = document.getElementById('sel_prod').value;
+            let c = document.getElementById('val_cant').value;
+            if(!n || !c) return;
+            carrito.push({nombre: n, cantidad: c});
+            renderCarrito();
+            document.getElementById('val_cant').value = "";
+        }
 
-    if (!p || !c || c <= 0) {
-        alert("Completa producto y cantidad");
-        return;
-    }
+        function renderCarrito() {
+            let h = '';
+            carrito.forEach((it, i) => {
+                h += `<tr><td class="p-4 font-bold">${it.nombre}</td><td class="p-4">${it.cantidad}</td><td class="p-4 text-right"><button onclick="carrito.splice(${i},1);renderCarrito()" class="text-red-400">✕</button></td></tr>`;
+            });
+            document.getElementById('lista_carrito').innerHTML = h;
+        }
 
-    carrito.push({producto: p, cantidad: c});
-    renderCarrito();
-    document.getElementById('val_cant').value = "";
-}
+        async function enviarVenta() {
+            if(!carrito.length) return;
+            let f = new FormData(); f.append('carrito', JSON.stringify(carrito));
+            let r = await fetch('/venta', {method:'POST', body:f});
+            if(r.ok) location.reload();
+        }
 
-function renderCarrito() {
-    let h = '';
-    carrito.forEach((item, i) => {
-        h += `
-        <tr class="border-t">
-            <td class="p-2">${item.producto}</td>
-            <td class="p-2">${item.cantidad}</td>
-            <td class="p-2">
-                <button onclick="eliminar(${i})" class="text-red-500">❌</button>
-            </td>
-        </tr>`;
-    });
-    document.getElementById('tabla_carrito').innerHTML = h;
-}
+        async function reponer() {
+            let f = new FormData();
+            f.append('producto', document.getElementById('rep_prod').value);
+            f.append('cantidad', document.getElementById('rep_cant').value);
+            await fetch('/reponer', {method:'POST', body:f});
+            location.reload();
+        }
 
-function eliminar(i){
-    carrito.splice(i,1);
-    renderCarrito();
-}
+        async function guardarCat() {
+            let f = new FormData();
+            f.append('nombre', document.getElementById('cat_nom').value);
+            f.append('p100', document.getElementById('cat_100').value || 0);
+            f.append('p250', document.getElementById('cat_250').value || 0);
+            f.append('p500', document.getElementById('cat_500').value || 0);
+            f.append('p1000', document.getElementById('cat_1000').value || 0);
+            f.append('unidad', document.getElementById('cat_uni').checked);
+            await fetch('/catalogo', {method:'POST', body:f});
+            location.reload();
+        }
 
-async function finalizarVenta() {
-    if (carrito.length === 0) {
-        alert("Carrito vacío");
-        return;
-    }
+        async function cargarHistorial() {
+            let r = await fetch('/historial');
+            let data = await r.json();
+            let h = '';
+            data.forEach(v => {
+                let fecha = new Date(v.fecha).toLocaleString();
+                h += `<tr>
+                    <td class="py-4 text-slate-500">${fecha}</td>
+                    <td class="py-4 font-medium">${v.items}</td>
+                    <td class="py-4 font-bold text-green-600">$${v.total}</td>
+                    <td class="py-4 text-right space-x-2">
+                        <button onclick="imprimir(${v.id}, '${v.items}', ${v.total})" class="text-blue-500 font-bold">Imprimir</button>
+                        <button onclick="borrarVenta(${v.id})" class="text-red-300 font-bold hover:text-red-500">Borrar</button>
+                    </td>
+                </tr>`;
+            });
+            document.getElementById('lista_historial').innerHTML = h;
+        }
 
-    let f = new FormData();
-    f.append('carrito', JSON.stringify(carrito));
+        function imprimir(id, items, total) {
+            document.getElementById('ticket_items').innerHTML = items.split(',').join('<br>');
+            document.getElementById('ticket_total').innerText = '$' + total;
+            window.print();
+        }
 
-    let res = await fetch('/registrar_venta_carrito', {
-        method: 'POST',
-        body: f
-    });
+        async function borrarVenta(id) {
+            if(!confirm("¿Borrar venta? Se devolverá el stock.")) return;
+            let f = new FormData(); f.append('id', id);
+            await fetch('/borrar_venta', {method:'POST', body:f});
+            location.reload();
+        }
 
-    let data = await res.json();
-
-    if(data.error){
-        alert(data.error);
-        return;
-    }
-
-    alert("Venta registrada ✅");
-    location.reload();
-}
-
-async function reponerStock() {
-    let prod = document.getElementById('stock_prod').value;
-    let cant = parseInt(document.getElementById('stock_cant').value);
-
-    if (!cant || cant <= 0) {
-        alert("Cantidad inválida");
-        return;
-    }
-
-    let f = new FormData();
-    f.append('producto', prod);
-    f.append('cantidad', cant);
-
-    await fetch('/reponer_stock', {
-        method: 'POST',
-        body: f
-    });
-
-    alert("Stock actualizado ✅");
-    location.reload();
-}
-
-async function guardarCatalogo() {
-    let f = new FormData();
-
-    f.append('nombre', document.getElementById('cat_nom').value);
-    f.append('p100', document.getElementById('cat_100').value || 0);
-    f.append('p250', document.getElementById('cat_250').value || 0);
-    f.append('p500', document.getElementById('cat_500').value || 0);
-    f.append('p1000', document.getElementById('cat_1000').value || 0);
-    f.append('unidad', document.getElementById('cat_uni').checked ? 'true' : 'false');
-
-    await fetch('/add_producto_catalogo', {
-        method: 'POST',
-        body: f
-    });
-
-    alert("Producto guardado ✅");
-    location.reload();
-}
-
-async function cargarHistorial(){
-    let res = await fetch('/historial');
-    let data = await res.json();
-
-    let h = '';
-    data.forEach(v => {
-        h += `
-        <tr class="border-t">
-            <td>${v.id}</td>
-            <td>${new Date(v.fecha).toLocaleString()}</td>
-            <td>$${v.total}</td>
-            <td>
-                <button onclick="verTicket(${v.id})" class="text-blue-500">🧾</button>
-                <button onclick="borrarVenta(${v.id})" class="text-red-500">❌</button>
-            </td>
-        </tr>`;
-    });
-
-    document.getElementById('historial_tabla').innerHTML = h;
-}
-
-async function borrarVenta(id){
-    if(!confirm("Borrar venta?")) return;
-
-    let f = new FormData();
-    f.append('id', id);
-
-    await fetch('/borrar_venta', {
-        method: 'POST',
-        body: f
-    });
-
-    location.reload();
-}
-
-async function verTicket(id){
-    let res = await fetch('/ticket/' + id);
-    let data = await res.json();
-
-    let txt = `🧾 TICKET\n\n`;
-    data.items.forEach(i => {
-        txt += `${i.producto} - ${i.cantidad} - $${i.subtotal}\n`;
-    });
-
-    txt += `\nTOTAL: $${data.venta.total}`;
-
-    alert(txt);
-}
-
-// cargar historial al iniciar
-cargarHistorial();
-</script>
-
+        setInterval(() => document.getElementById('reloj').innerText = new Date().toLocaleTimeString(), 1000);
+        window.onload = cargarHistorial;
+    </script>
 </body>
 </html>
