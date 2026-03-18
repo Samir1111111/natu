@@ -3,102 +3,122 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Natu PRO | Gestión</title>
+    <title>Natu PRO | Panel</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        .card { @apply bg-white p-6 rounded-2xl shadow-sm border border-slate-100; }
-        .btn-green { @apply bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-xl transition-all; }
-        .low-stock { @apply text-red-600 font-bold animate-pulse; }
+        body { font-family: 'Inter', sans-serif; background: #f1f5f9; }
+        .card { @apply bg-white p-6 rounded-3xl shadow-sm border border-slate-200; }
+        .input-style { @apply w-full p-3 rounded-2xl border border-slate-200 bg-slate-50 focus:ring-2 focus:ring-green-500 outline-none transition-all; }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="p-4 lg:p-10">
 
     <div class="max-w-6xl mx-auto space-y-6">
         
-        <!-- Header & Stats -->
-        <div class="flex flex-col md:flex-row justify-between items-center gap-4">
-            <h1 class="text-3xl font-bold text-slate-800">🌿 Natu <span class="text-green-600">PRO</span></h1>
-            <div class="flex gap-4">
-                <div class="card flex flex-col items-center min-w-[120px]">
-                    <span class="text-slate-500 text-sm">Ventas Hoy</span>
-                    <span id="stat_hoy" class="text-2xl font-bold text-green-600">$0</span>
-                </div>
-                <div class="card flex flex-col items-center min-w-[120px]">
-                    <span class="text-slate-500 text-sm">Operaciones</span>
-                    <span id="stat_n" class="text-2xl font-bold text-blue-600">0</span>
-                </div>
+        <!-- Dashboard Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="card bg-green-600 text-white border-none">
+                <p class="opacity-80 text-sm">Ventas Hoy</p>
+                <h2 id="stat_hoy" class="text-3xl font-bold">$0</h2>
+            </div>
+            <div class="card">
+                <p class="text-slate-500 text-sm">Operaciones</p>
+                <h2 id="stat_n" class="text-3xl font-bold text-slate-800">0</h2>
+            </div>
+            <div class="card">
+                <p class="text-slate-500 text-sm">Más Vendido</p>
+                <h2 id="stat_top" class="text-xl font-bold text-slate-800 text-ellipsis overflow-hidden">---</h2>
+            </div>
+            <div id="alerta_stock" class="card border-red-200 bg-red-50 hidden">
+                <p class="text-red-600 text-xs font-bold uppercase">⚠️ Stock Bajo</p>
+                <p id="bajos_lista" class="text-sm text-red-700 font-medium"></p>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            <!-- Panel de Ventas -->
-            <div class="card space-y-4">
-                <h2 class="text-xl font-bold border-b pb-2 text-slate-700">🛒 Nueva Venta</h2>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Venta -->
+            <div class="card">
+                <h3 class="text-lg font-bold mb-4 flex items-center gap-2">🛒 Nueva Venta</h3>
                 <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm text-slate-500">Producto</label>
-                        <select id="sel_prod" class="w-full p-3 rounded-xl border bg-slate-50 mt-1">
-                            {% for p in productos %}
-                            <option value="{{p.nombre}}">{{p.nombre}} (Stock: {{p.stock_gramos}}g)</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm text-slate-500">Cantidad (Gramos o Unidades)</label>
-                        <input type="number" id="val_cant" placeholder="Ej: 250" class="w-full p-3 rounded-xl border bg-slate-50 mt-1">
-                    </div>
-                    <button onclick="realizarVenta()" class="btn-green w-full text-lg">Registrar Venta</button>
+                    <select id="sel_prod" class="input-style">
+                        {% for p in productos %}
+                        <option value="{{p.nombre}}">{{p.nombre}} (Disp: {{p.stock_gramos}})</option>
+                        {% endfor %}
+                    </select>
+                    <input type="number" id="val_cant" placeholder="Gramos / Unidades" class="input-style">
+                    <button onclick="realizarVenta()" class="w-full py-4 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-bold text-lg shadow-lg shadow-green-200 transition-all">Registrar y Descontar</button>
                 </div>
             </div>
 
-            <!-- Panel de Stock -->
-            <div class="card space-y-4">
-                <h2 class="text-xl font-bold border-b pb-2 text-slate-700">📦 Reponer / Catálogo</h2>
-                <div class="grid grid-cols-2 gap-2">
-                    <input id="cat_nom" placeholder="Producto" class="col-span-2 p-2 border rounded-lg text-sm">
-                    <input id="cat_100" type="number" placeholder="$100g" class="p-2 border rounded-lg text-sm">
-                    <input id="cat_250" type="number" placeholder="$250g" class="p-2 border rounded-lg text-sm">
-                    <input id="cat_500" type="number" placeholder="$500g" class="p-2 border rounded-lg text-sm">
-                    <input id="cat_1000" type="number" placeholder="$1kg o U" class="p-2 border rounded-lg text-sm">
-                    <button onclick="guardarCatalogo()" class="col-span-2 bg-slate-800 text-white p-2 rounded-lg text-sm font-bold">Guardar/Actualizar</button>
+            <!-- Catálogo -->
+            <div class="card">
+                <h3 class="text-lg font-bold mb-4">📦 Gestión de Productos</h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <input id="cat_nom" placeholder="Nombre" class="col-span-2 input-style">
+                    <input id="cat_100" type="number" placeholder="$ 100g" class="input-style">
+                    <input id="cat_250" type="number" placeholder="$ 250g" class="input-style">
+                    <input id="cat_500" type="number" placeholder="$ 500g" class="input-style">
+                    <input id="cat_1000" type="number" placeholder="$ 1kg / Uni" class="input-style">
+                    <div class="col-span-2 flex items-center gap-2 p-2">
+                        <input type="checkbox" id="cat_uni" class="w-5 h-5 text-green-600">
+                        <label for="cat_uni" class="text-sm text-slate-600">Es venta por Unidad (No por peso)</label>
+                    </div>
+                    <button onclick="guardarCatalogo()" class="col-span-2 py-3 bg-slate-800 text-white rounded-xl font-bold">Guardar Producto</button>
                 </div>
-                <hr>
-                <div class="flex gap-2">
-                    <input id="rep_cant" type="number" placeholder="Gramos a sumar" class="flex-1 p-2 border rounded-lg">
-                    <button onclick="reponer()" class="bg-blue-600 text-white px-4 rounded-lg font-bold">Sumar</button>
+                <div class="mt-6 pt-6 border-t flex gap-2">
+                    <input id="rep_cant" type="number" placeholder="Sumar stock" class="flex-1 input-style text-sm">
+                    <button onclick="reponer()" class="px-6 bg-blue-600 text-white rounded-xl font-bold text-sm">Reponer</button>
                 </div>
             </div>
         </div>
 
         <!-- Historial -->
-        <div class="card overflow-hidden">
-            <h2 class="text-xl font-bold mb-4 text-slate-700">📜 Últimos Movimientos</h2>
+        <div class="card">
+            <h3 class="text-lg font-bold mb-4">📋 Historial Reciente</h3>
             <div class="overflow-x-auto">
                 <table class="w-full text-left">
-                    <thead class="bg-slate-50 text-slate-500 text-sm">
+                    <thead class="text-slate-400 text-xs uppercase">
                         <tr>
-                            <th class="p-4">Venta</th>
-                            <th class="p-4">Producto</th>
-                            <th class="p-4">Total</th>
-                            <th class="p-4">Acciones</th>
+                            <th class="pb-3 px-2">Venta</th>
+                            <th class="pb-3">Producto</th>
+                            <th class="pb-3">Monto</th>
+                            <th class="pb-3 text-right">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody id="lista_historial" class="divide-y">
-                        <!-- Se llena vía JS -->
-                    </tbody>
+                    <tbody id="lista_historial" class="divide-y divide-slate-100"></tbody>
                 </table>
             </div>
         </div>
     </div>
 
     <script>
-        function updateStats() {
-            fetch('/stats').then(r=>r.json()).then(d=>{
+        function refresh() {
+            // Stats
+            fetch('/dashboard_data').then(r=>r.json()).then(d=>{
                 document.getElementById('stat_hoy').innerText = `$${d.hoy}`;
                 document.getElementById('stat_n').innerText = d.ventas_n;
+                document.getElementById('stat_top').innerText = d.top_prod;
+                
+                if(d.bajos.length > 0) {
+                    document.getElementById('alerta_stock').classList.remove('hidden');
+                    document.getElementById('bajos_lista').innerText = d.bajos.map(b => b.nombre).join(', ');
+                }
+            });
+
+            // Historial
+            fetch('/historial').then(r=>r.json()).then(d=>{
+                let html = '';
+                d.historial.forEach(v => {
+                    html += `<tr class="text-sm">
+                        <td class="py-4 px-2 text-slate-400 font-mono">#${v.id}</td>
+                        <td class="py-4 font-semibold text-slate-700">${v.producto} <span class="text-xs font-normal text-slate-400">(${v.cantidad}g/u)</span></td>
+                        <td class="py-4 text-green-600 font-bold">$${v.total}</td>
+                        <td class="py-4 text-right">
+                            <button onclick="borrarVenta(${v.id})" class="text-red-400 hover:text-red-600">Eliminar</button>
+                        </td>
+                    </tr>`;
+                });
+                document.getElementById('lista_historial').innerHTML = html;
             });
         }
 
@@ -106,46 +126,10 @@
             let f = new FormData();
             f.append('producto', document.getElementById('sel_prod').value);
             f.append('cantidad', document.getElementById('val_cant').value);
-            fetch('/venta_rapida', {method:'POST', body:f}).then(r=>r.json()).then(d=>{
-                if(d.error) alert(d.error);
+            fetch('/venta_rapida', {method:'POST', body:f}).then(async r => {
+                if(!r.ok) { let e = await r.json(); alert(e.error); }
                 else location.reload();
             });
-        }
-
-        function loadHistorial() {
-            fetch('/historial').then(r=>r.json()).then(d=>{
-                let h = '';
-                d.historial.forEach(v=>{
-                    h += `
-                    <tr>
-                        <td class="p-4 text-xs text-slate-400">#${v.id}<br>${new Date(v.fecha).toLocaleTimeString()}</td>
-                        <td class="p-4 font-semibold">${v.producto} (${v.cantidad}g/u)</td>
-                        <td class="p-4 text-green-600 font-bold">$${v.total}</td>
-                        <td class="p-4 flex gap-2">
-                            <button onclick="imprimirTicket(${v.id}, '${v.producto}', ${v.cantidad}, ${v.total})" class="bg-slate-100 p-2 rounded-lg">🖨️</button>
-                            <button onclick="borrarVenta(${v.id})" class="bg-red-50 text-red-500 p-2 rounded-lg">🗑️</button>
-                        </td>
-                    </tr>`;
-                });
-                document.getElementById('lista_historial').innerHTML = h;
-            });
-        }
-
-        function imprimirTicket(id, prod, cant, total) {
-            let win = window.open('', '', 'width=300,height=400');
-            win.document.write(`
-                <div style="font-family:monospace; width:200px; padding:10px; border:1px solid #000">
-                    <center><b>🌿 NATU 🌿</b><br>Naturalmente Rico</center><br>
-                    TICKET #${id}<br>
-                    --------------------<br>
-                    ${prod}<br>
-                    Cant: ${cant}g/u<br>
-                    TOTAL: $${total}<br>
-                    --------------------<br>
-                    ¡Gracias por elegirnos!
-                </div>
-            `);
-            win.print(); win.close();
         }
 
         function guardarCatalogo() {
@@ -155,6 +139,7 @@
             f.append('p250', document.getElementById('cat_250').value);
             f.append('p500', document.getElementById('cat_500').value);
             f.append('p1000', document.getElementById('cat_1000').value);
+            f.append('unidad', document.getElementById('cat_uni').checked);
             fetch('/add_producto_catalogo', {method:'POST', body:f}).then(()=>location.reload());
         }
 
@@ -166,13 +151,12 @@
         }
 
         function borrarVenta(id) {
-            if(!confirm("¿Borrar venta y devolver stock?")) return;
+            if(!confirm("¿Borrar venta? Se devolverá el stock.")) return;
             let f = new FormData(); f.append('id', id);
             fetch('/borrar_venta', {method:'POST', body:f}).then(()=>location.reload());
         }
 
-        updateStats();
-        loadHistorial();
+        window.onload = refresh;
     </script>
 </body>
 </html>
