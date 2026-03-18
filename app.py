@@ -123,3 +123,67 @@ def reponer(producto: str = Form(...), cantidad: int = Form(...)):
     conn.close()
 
     return {"ok": True}
+
+    @app.get("/historial")
+def historial():
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT v.id, v.fecha, v.total
+        FROM ventas v
+        ORDER BY v.fecha DESC
+        LIMIT 20
+    """)
+
+    ventas = cur.fetchall()
+
+    conn.close()
+    return ventas
+
+
+@app.post("/borrar_venta")
+def borrar_venta(id: int = Form(...)):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # devolver stock
+    cur.execute("SELECT producto, cantidad FROM detalle_venta WHERE venta_id=%s", (id,))
+    items = cur.fetchall()
+
+    for i in items:
+        cur.execute("""
+            UPDATE productos
+            SET stock_gramos = stock_gramos + %s
+            WHERE nombre = %s
+        """, (i['cantidad'], i['producto']))
+
+    cur.execute("DELETE FROM ventas WHERE id=%s", (id,))
+
+    conn.commit()
+    conn.close()
+
+    return {"ok": True}
+
+
+@app.get("/ticket/{venta_id}")
+def ticket(venta_id: int):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("SELECT * FROM ventas WHERE id=%s", (venta_id,))
+    venta = cur.fetchone()
+
+    cur.execute("""
+        SELECT producto, cantidad, subtotal
+        FROM detalle_venta
+        WHERE venta_id=%s
+    """, (venta_id,))
+    items = cur.fetchall()
+
+    conn.close()
+
+    return {
+        "venta": venta,
+        "items": items
+    }
