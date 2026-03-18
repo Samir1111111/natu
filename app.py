@@ -6,184 +6,136 @@ from psycopg2.extras import RealDictCursor
 import json
 
 app = FastAPI()
-
 DATABASE_URL = "postgresql://postgres.tcdkapcrcntrawckkaex:Samirphite2006@aws-1-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require"
 
 def get_db_connection():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
+# --- INICIALIZACIÓN ---
+@app.on_event("startup")
+def startup_db():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS productos (
+            id SERIAL PRIMARY KEY,
+            nombre TEXT UNIQUE,
+            p_100 REAL, p_250 REAL, p_500 REAL, p_1000 REAL,
+            es_unitario BOOLEAN DEFAULT FALSE,
+            stock INTEGER DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS ventas (
+            id SERIAL PRIMARY KEY,
+            fecha TIMESTAMP DEFAULT NOW(),
+            total REAL
+        );
+        CREATE TABLE IF NOT EXISTS detalle_ventas (
+            id SERIAL PRIMARY KEY,
+            venta_id INTEGER REFERENCES ventas(id) ON DELETE CASCADE,
+            producto TEXT,
+            cantidad INTEGER,
+            subtotal REAL
+        );
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
+
 templates = Jinja2Templates(directory="templates")
 
+# --- RUTAS ---
+
 @app.get("/", response_class=HTMLResponse)
-def home(request: Request):
+def index(request: Request):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("SELECT * FROM productos ORDER BY nombre ASC")
     prods = cur.fetchall()
+    cur.close()
     conn.close()
     return templates.TemplateResponse("index.html", {"request": request, "productos": prods})
 
-
-@app.post("/add_producto_catalogo")
-def add_catalogo(
-    nombre: str = Form(...),
-    p100: float = Form(...),
-    p250: float = Form(...),
-    p500: float = Form(...),
-    p1000: float = Form(...),
-    unidad: str = Form("false")
-):
+@app.post("/catalogo")
+def guardar_catalogo(nombre: str = Form(...), p100: float = Form(...), p250: float = Form(...), p500: float = Form(...), p1000: float = Form(...), unidad: str = Form("false")):
+    is_uni = unidad.lower() == "true"
     conn = get_db_connection()
     cur = conn.cursor()
-
     cur.execute("""
-        INSERT INTO productos (nombre, p_100, p_250, p_500, p_1000, es_unitario, stock_gramos)
-        VALUES (%s,%s,%s,%s,%s,%s,0)
-        ON CONFLICT (nombre) DO UPDATE SET
-        p_100=EXCLUDED.p_100,
-        p_250=EXCLUDED.p_250,
-        p_500=EXCLUDED.p_500,
-        p_1000=EXCLUDED.p_1000,
-        es_unitario=EXCLUDED.es_unitario
-    """, (nombre, p100, p250, p500, p1000, unidad == "true"))
-
+        INSERT INTO productos (nombre, p_100, p_250, p_500, p_1000, es_unitario)
+        VALUES (%s,%s,%s,%s,%s,%s)
+        ON CONFLICT (nombre) DO UPDATE SET 
+        p_100=EXCLUDED.p_100, p_250=EXCLUDED.p_250, p_500=EXCLUDED.p_500, p_1000=EXCLUDED.p_1000, es_unitario=EXCLUDED.es_unitario
+    """, (nombre, p100, p250, p500, p1000, is_uni))
     conn.commit()
     conn.close()
-    return {"ok": True}
+    return {"status": "ok"}
 
-
-@app.post("/registrar_venta_carrito")
-def registrar_venta(carrito: str = Form(...)):
-    items = json.loads(carrito)
-
+@app.post("/reponer")
+def reponer_stock(producto: str = Form(...), cantidad: int = Form(...)):
     conn = get_db_connection()
     cur = conn.cursor()
-
-    total = 0
-
-    cur.execute("INSERT INTO ventas (total) VALUES (0) RETURNING id")
-    venta_id = cur.fetchone()['id']
-
-    for item in items:
-        nombre = item['producto']
-        cantidad = int(item['cantidad'])
-
-        cur.execute("SELECT * FROM productos WHERE nombre=%s", (nombre,))
-        p = cur.fetchone()
-
-        if not p:
-            return JSONResponse({"error": "Producto no existe"}, status_code=400)
-
-        if p['stock_gramos'] < cantidad:
-            return JSONResponse({"error": f"Sin stock de {nombre}"}, status_code=400)
-
-        if p['es_unitario']:
-            subtotal = p['p_1000'] * cantidad
-        else:
-            if cantidad <= 100:
-                subtotal = p['p_100']
-            elif cantidad <= 250:
-                subtotal = p['p_250']
-            elif cantidad <= 500:
-                subtotal = p['p_500']
-            else:
-                subtotal = p['p_1000']
-
-        total += subtotal
-
-        cur.execute("""
-            INSERT INTO detalle_venta (venta_id, producto, cantidad, subtotal)
-            VALUES (%s,%s,%s,%s)
-        """, (venta_id, nombre, cantidad, subtotal))
-
-        cur.execute("""
-            UPDATE productos SET stock_gramos = stock_gramos - %s
-            WHERE nombre = %s
-        """, (cantidad, nombre))
-
-    cur.execute("UPDATE ventas SET total=%s WHERE id=%s", (total, venta_id))
-
+    cur.execute("UPDATE productos SET stock = stock + %s WHERE nombre = %s", (cantidad, producto))
     conn.commit()
     conn.close()
+    return {"status": "ok"}
 
-    return {"ok": True}
-
-
-@app.post("/reponer_stock")
-def reponer(producto: str = Form(...), cantidad: int = Form(...)):
+@app.post("/venta")
+def procesar_venta(carrito: str = Form(...)):
+    data = json.loads(carrito)
     conn = get_db_connection()
     cur = conn.cursor()
+    total_venta = 0
+    try:
+        cur.execute("INSERT INTO ventas (total) VALUES (0) RETURNING id")
+        v_id = cur.fetchone()['id']
+        
+        for item in data:
+            cur.execute("SELECT * FROM productos WHERE nombre = %s", (item['nombre'],))
+            p = cur.fetchone()
+            cant = int(item['cantidad'])
+            
+            # Lógica de precio escalonado
+            if p['es_unitario']: sub = p['p_1000'] * cant
+            elif cant <= 100: sub = p['p_100']
+            elif cant <= 250: sub = p['p_250']
+            elif cant <= 500: sub = p['p_500']
+            else: sub = p['p_1000']
+            
+            total_venta += sub
+            cur.execute("INSERT INTO detalle_ventas (venta_id, producto, cantidad, subtotal) VALUES (%s,%s,%s,%s)", (v_id, p['nombre'], cant, sub))
+            cur.execute("UPDATE productos SET stock = stock - %s WHERE nombre = %s", (cant, p['nombre']))
+            
+        cur.execute("UPDATE ventas SET total = %s WHERE id = %s", (total_venta, v_id))
+        conn.commit()
+        return {"id": v_id}
+    finally:
+        conn.close()
 
-    cur.execute("""
-        UPDATE productos SET stock_gramos = stock_gramos + %s
-        WHERE nombre = %s
-    """, (cantidad, producto))
-
-    conn.commit()
-    conn.close()
-
-    return {"ok": True}
-
-    @app.get("/historial")
-def historial():
+@app.get("/historial")
+def ver_historial():
     conn = get_db_connection()
     cur = conn.cursor()
-
     cur.execute("""
-        SELECT v.id, v.fecha, v.total
-        FROM ventas v
-        ORDER BY v.fecha DESC
-        LIMIT 20
+        SELECT v.id, v.fecha, v.total, 
+        string_agg(d.producto || ' (' || d.cantidad || ')', ', ') as items
+        FROM ventas v 
+        LEFT JOIN detalle_ventas d ON v.id = d.venta_id
+        GROUP BY v.id ORDER BY v.fecha DESC LIMIT 50
     """)
-
-    ventas = cur.fetchall()
-
+    res = cur.fetchall()
     conn.close()
-    return ventas
-
+    return res
 
 @app.post("/borrar_venta")
 def borrar_venta(id: int = Form(...)):
     conn = get_db_connection()
     cur = conn.cursor()
-
-    # devolver stock
-    cur.execute("SELECT producto, cantidad FROM detalle_venta WHERE venta_id=%s", (id,))
-    items = cur.fetchall()
-
-    for i in items:
-        cur.execute("""
-            UPDATE productos
-            SET stock_gramos = stock_gramos + %s
-            WHERE nombre = %s
-        """, (i['cantidad'], i['producto']))
-
-    cur.execute("DELETE FROM ventas WHERE id=%s", (id,))
-
+    # Devolver stock
+    cur.execute("SELECT producto, cantidad FROM detalle_ventas WHERE venta_id = %s", (id,))
+    detalles = cur.fetchall()
+    for d in detalles:
+        cur.execute("UPDATE productos SET stock = stock + %s WHERE nombre = %s", (d['cantidad'], d['producto']))
+    cur.execute("DELETE FROM ventas WHERE id = %s", (id,))
     conn.commit()
     conn.close()
-
-    return {"ok": True}
-
-
-@app.get("/ticket/{venta_id}")
-def ticket(venta_id: int):
-    conn = get_db_connection()
-    cur = conn.cursor()
-
-    cur.execute("SELECT * FROM ventas WHERE id=%s", (venta_id,))
-    venta = cur.fetchone()
-
-    cur.execute("""
-        SELECT producto, cantidad, subtotal
-        FROM detalle_venta
-        WHERE venta_id=%s
-    """, (venta_id,))
-    items = cur.fetchall()
-
-    conn.close()
-
-    return {
-        "venta": venta,
-        "items": items
-    }
+    return {"status": "ok"}
