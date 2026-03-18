@@ -1,3 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Natu PRO</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 p-6">
+
+<div class="max-w-5xl mx-auto space-y-6">
+
+    <!-- 🛒 CARRITO -->
+    <div class="bg-white p-6 rounded-xl shadow">
+        <h2 class="text-xl font-bold mb-4">🛒 Nueva Venta</h2>
+
+        <div class="flex gap-2 mb-4">
+            <select id="sel_prod" class="border p-2 rounded w-full">
+                <option value="">Seleccionar producto</option>
+                {% for p in productos %}
+                <option value="{{p.nombre}}">
+                    {{p.nombre}} (Stock: {{p.stock_gramos}}g)
+                </option>
+                {% endfor %}
+            </select>
+
+            <input type="number" id="val_cant" placeholder="Cantidad (g/u)" class="border p-2 rounded w-40">
+
+            <button onclick="agregarAlCarrito()" class="bg-green-600 text-white px-4 rounded">
+                Agregar
+            </button>
+        </div>
+
+        <table class="w-full text-left border">
+            <thead class="bg-gray-200">
+                <tr>
+                    <th class="p-2">Producto</th>
+                    <th class="p-2">Cantidad</th>
+                    <th class="p-2"></th>
+                </tr>
+            </thead>
+            <tbody id="tabla_carrito"></tbody>
+        </table>
+
+        <button onclick="finalizarVenta()" class="mt-4 w-full bg-green-700 text-white p-3 rounded">
+            Finalizar Venta
+        </button>
+    </div>
+
+    <!-- 📦 STOCK -->
+    <div class="bg-white p-6 rounded-xl shadow">
+        <h2 class="text-xl font-bold mb-4">📦 Reponer Stock</h2>
+
+        <div class="flex gap-2">
+            <select id="stock_prod" class="border p-2 rounded w-full">
+                {% for p in productos %}
+                <option value="{{p.nombre}}">{{p.nombre}}</option>
+                {% endfor %}
+            </select>
+
+            <input type="number" id="stock_cant" placeholder="Cantidad" class="border p-2 rounded w-40">
+
+            <button onclick="reponerStock()" class="bg-blue-600 text-white px-4 rounded">
+                Reponer
+            </button>
+        </div>
+    </div>
+
+    <!-- ⚙️ PRODUCTOS -->
+    <div class="bg-white p-6 rounded-xl shadow">
+        <h2 class="text-xl font-bold mb-4">⚙️ Nuevo Producto</h2>
+
+        <div class="grid grid-cols-2 gap-2">
+            <input id="cat_nom" placeholder="Nombre" class="border p-2 rounded col-span-2">
+
+            <input id="cat_100" type="number" placeholder="Precio 100g" class="border p-2 rounded">
+            <input id="cat_250" type="number" placeholder="Precio 250g" class="border p-2 rounded">
+            <input id="cat_500" type="number" placeholder="Precio 500g" class="border p-2 rounded">
+            <input id="cat_1000" type="number" placeholder="Precio 1kg / unidad" class="border p-2 rounded">
+
+            <label class="col-span-2 flex items-center gap-2">
+                <input type="checkbox" id="cat_uni"> Venta por unidad
+            </label>
+
+            <button onclick="guardarCatalogo()" class="bg-black text-white p-3 rounded col-span-2">
+                Guardar Producto
+            </button>
+        </div>
+    </div>
+
+</div>
+
 <script>
 let carrito = [];
 
@@ -19,11 +111,11 @@ function renderCarrito() {
     let h = '';
     carrito.forEach((item, i) => {
         h += `
-        <tr>
-            <td>${item.producto}</td>
-            <td>${item.cantidad}</td>
-            <td>
-                <button onclick="eliminar(${i})">❌</button>
+        <tr class="border-t">
+            <td class="p-2">${item.producto}</td>
+            <td class="p-2">${item.cantidad}</td>
+            <td class="p-2">
+                <button onclick="eliminar(${i})" class="text-red-500">❌</button>
             </td>
         </tr>`;
     });
@@ -101,3 +193,6 @@ async function guardarCatalogo() {
     location.reload();
 }
 </script>
+
+</body>
+</html>
