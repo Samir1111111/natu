@@ -88,8 +88,23 @@
         </div>
     </div>
 
-</div>
 
+    <div class="bg-white p-6 rounded-xl shadow">
+        <h2 class="text-xl font-bold mb-4">📊 Historial de Ventas</h2>
+    
+        <table class="w-full text-sm">
+            <thead class="bg-gray-200">
+                <tr>
+                    <th>ID</th>
+                    <th>Fecha</th>
+                    <th>Total</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="historial_tabla"></tbody>
+        </table>
+    </div>
+</div>
 <script>
 let carrito = [];
 
@@ -192,6 +207,58 @@ async function guardarCatalogo() {
     alert("Producto guardado ✅");
     location.reload();
 }
+
+async function cargarHistorial(){
+    let res = await fetch('/historial');
+    let data = await res.json();
+
+    let h = '';
+    data.forEach(v => {
+        h += `
+        <tr class="border-t">
+            <td>${v.id}</td>
+            <td>${new Date(v.fecha).toLocaleString()}</td>
+            <td>$${v.total}</td>
+            <td>
+                <button onclick="verTicket(${v.id})" class="text-blue-500">🧾</button>
+                <button onclick="borrarVenta(${v.id})" class="text-red-500">❌</button>
+            </td>
+        </tr>`;
+    });
+
+    document.getElementById('historial_tabla').innerHTML = h;
+}
+
+async function borrarVenta(id){
+    if(!confirm("Borrar venta?")) return;
+
+    let f = new FormData();
+    f.append('id', id);
+
+    await fetch('/borrar_venta', {
+        method: 'POST',
+        body: f
+    });
+
+    location.reload();
+}
+
+async function verTicket(id){
+    let res = await fetch('/ticket/' + id);
+    let data = await res.json();
+
+    let txt = `🧾 TICKET\n\n`;
+    data.items.forEach(i => {
+        txt += `${i.producto} - ${i.cantidad} - $${i.subtotal}\n`;
+    });
+
+    txt += `\nTOTAL: $${data.venta.total}`;
+
+    alert(txt);
+}
+
+// cargar historial al iniciar
+cargarHistorial();
 </script>
 
 </body>
