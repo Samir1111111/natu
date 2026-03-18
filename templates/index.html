@@ -1,178 +1,72 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Natu - Gestión de Ventas</title>
-    <style>
-        body { font-family: 'Segoe UI', sans-serif; margin: 20px; background: #fdfaf5; color: #4a4a4a; }
-        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); margin-bottom: 25px; border-left: 5px solid #7ea04d; }
-        h1, h2 { color: #5c7a33; margin-top: 0; }
-        input, button, select { padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; font-size: 16px; }
-        input:focus { outline: none; border-color: #7ea04d; box-shadow: 0 0 5px rgba(126,160,77,0.3); }
-        button { cursor: pointer; background: #7ea04d; color: white; border: none; font-weight: 600; transition: 0.3s; width: 100%; max-width: 250px; }
-        button:hover { background: #6a8841; transform: translateY(-1px); }
-        .btn-print { background: #4a90e2; }
-        .btn-del { background: #e74c3c; width: auto; padding: 5px 12px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; border-radius: 10px; overflow: hidden; }
-        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #f0f0f0; }
-        th { background: #f9fbf7; color: #5c7a33; text-transform: uppercase; font-size: 13px; }
-        .sub-btn { background: #333; font-size: 11px; margin-top: 40px; opacity: 0.6; }
-    </style>
+<title>Natu PRO</title>
+<style>
+.low {color:red;font-weight:bold;}
+</style>
 </head>
 <body>
 
-    <div class="card">
-        <h1>🌿 Natu - Administración</h1>
-        <p><i>"Naturalmente rico"</i></p>
-        <hr>
-        <h3>Actualizar Precios</h3>
-        <form id="form_catalogo">
-            <input type="text" name="nombre" placeholder="Nombre del producto" required style="width: 250px;">
-            <input type="number" step="0.01" name="precio_kg" placeholder="Precio x KG ($)" required style="width: 150px;">
-            <button type="submit">Actualizar Catálogo</button>
-        </form>
-    </div>
+<h1>Dashboard</h1>
+<p>Hoy: $<span id="hoy"></span></p>
+<p>Mes: $<span id="mes"></span></p>
 
-    <div class="card">
-        <h2>Nueva Venta</h2>
-        <button onclick="crearVenta()">+ Iniciar Nueva Venta</button>
-        <p>Venta Activa ID: <span id="disp_id" style="font-weight:bold; color: #7ea04d;">Ninguna</span></p>
+<h2>Productos</h2>
+<select id="prod">
+{% for p in productos %}
+<option value="{{p[1]}}">
+{{p[1]}} - Stock: <span class="{{'low' if p[6]<500 else ''}}">{{p[6]}}g</span>
+</option>
+{% endfor %}
+</select>
 
-        <div id="zona_carga" style="display:none; padding: 20px; background: #f9f9f9; border-radius: 10px;">
-            <select id="in_prod" style="width: 250px;">
-                <option value="">Seleccionar producto...</option>
-                {% for p in productos %}
-                <option value="{{ p[1] }}">{{ p[1] }} ($ {{ p[2] }}/kg)</option>
-                {% endfor %}
-            </select>
-            <input type="number" id="in_gr" placeholder="Gramos (ej: 500)">
-            <button onclick="agregarItem()">Añadir al Ticket</button>
-            <ul id="lista_prev" style="margin: 15px 0;"></ul>
-            <button onclick="finalizarVenta()" class="btn-print">Cerrar y Guardar Venta</button>
-        </div>
-    </div>
+<input id="gramos" placeholder="gramos">
 
-    <div class="card">
-        <h2>Historial de Ventas</h2>
-        <div style="overflow-x: auto;">
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Fecha</th>
-                        <th>Detalle</th>
-                        <th>Total</th>
-                        <th>Acción</th>
-                    </tr>
-                </thead>
-                <tbody id="tabla_ventas"></tbody>
-            </table>
-        </div>
-        <button onclick="resetSistema()" class="sub-btn">Borrar todo el historial</button>
-    </div>
+<button onclick="add()">Agregar</button>
+
+<h2>Reponer Stock</h2>
+<input id="rep_prod" placeholder="producto">
+<button onclick="rep(100)">+100g</button>
+<button onclick="rep(250)">+250g</button>
+<button onclick="rep(500)">+500g</button>
+<button onclick="rep(1000)">+1kg</button>
+
+<h2>Movimientos</h2>
+<ul id="movs"></ul>
 
 <script>
-    let current_id = null;
 
-    function crearVenta() {
-        fetch('/nueva_venta').then(res => res.json()).then(data => {
-            current_id = data.venta_id;
-            document.getElementById('disp_id').innerText = current_id;
-            document.getElementById('zona_carga').style.display = 'block';
-            document.getElementById('lista_prev').innerHTML = '';
-        });
-    }
+fetch('/dashboard').then(r=>r.json()).then(d=>{
+document.getElementById('hoy').innerText=d.hoy
+document.getElementById('mes').innerText=d.mes
+})
 
-    function agregarItem() {
-        let prod = document.getElementById('in_prod').value;
-        let gr = document.getElementById('in_gr').value;
-        if(!prod || !gr) return alert("Completar producto y gramos");
+function add(){
+let f=new FormData()
+f.append('venta_id',1)
+f.append('producto',document.getElementById('prod').value)
+f.append('gramos',document.getElementById('gramos').value)
 
-        let form = new FormData();
-        form.append('venta_id', current_id);
-        form.append('producto', prod);
-        form.append('gramos', gr);
+fetch('/agregar_producto',{method:'POST',body:f})
+}
 
-        fetch('/agregar_producto', {method: 'POST', body: form})
-        .then(res => res.json())
-        .then(data => {
-            if(data.error) return alert(data.error);
-            let li = document.createElement('li');
-            li.innerText = `${prod} - ${gr}g ($${data.subtotal.toFixed(2)})`;
-            document.getElementById('lista_prev').appendChild(li);
-            document.getElementById('in_gr').value = '';
-        });
-    }
+function rep(c){
+let f=new FormData()
+f.append('producto',document.getElementById('rep_prod').value)
+f.append('cantidad',c)
+fetch('/reponer_stock',{method:'POST',body:f}).then(()=>location.reload())
+}
 
-    function finalizarVenta() {
-        let form = new FormData();
-        form.append('venta_id', current_id);
-        fetch('/finalizar_venta', {method: 'POST', body: form}).then(() => {
-            alert("Venta guardada");
-            document.getElementById('zona_carga').style.display = 'none';
-            document.getElementById('disp_id').innerText = "Ninguna";
-            cargarVentas();
-        });
-    }
+fetch('/movimientos').then(r=>r.json()).then(d=>{
+let html=''
+d.movimientos.forEach(m=>{
+html+=`<li>${m[0]} ${m[1]}g (${m[2]})</li>`
+})
+document.getElementById('movs').innerHTML=html
+})
 
-    function cargarVentas() {
-        fetch('/ventas').then(res => res.json()).then(data => {
-            let html = '';
-            data.ventas.forEach(v => {
-                html += `<tr>
-                    <td>${v[0]}</td>
-                    <td>${v[1]}</td>
-                    <td style="font-size: 13px;">${v[2] || '---'}</td>
-                    <td><b>$${v[3].toFixed(2)}</b></td>
-                    <td>
-                        <button class="btn-print" onclick="imprimir(${v[0]})" style="width:auto; padding:5px 10px;">🖨️</button>
-                        <button class="btn-del" onclick="eliminar(${v[0]})">🗑️</button>
-                    </td>
-                </tr>`;
-            });
-            document.getElementById('tabla_ventas').innerHTML = html;
-        });
-    }
-
-    function imprimir(id) {
-        fetch(`/ticket/${id}`).then(res => res.json()).then(data => {
-            let win = window.open('', '', 'height=600,width=400');
-            win.document.write(`
-                <html><body style="font-family:monospace; width:280px; padding:10px;">
-                    <center><h2>🌿 NATU 🌿</h2><p>Naturalmente Rico</p></center>
-                    <hr>
-                    <p>Ticket #${data.venta[0]} - ${data.venta[1]}</p>
-                    ${data.detalles.map(d => `<p>${d[0]} (${d[1]}g): $${d[2].toFixed(2)}</p>`).join('')}
-                    <hr>
-                    <h3 style="text-align:right;">TOTAL: $${data.venta[2].toFixed(2)}</h3>
-                    <script>window.print(); window.close();<\/script>
-                </body></html>
-            `);
-            win.document.close();
-        });
-    }
-
-    function eliminar(id) {
-        if(confirm("¿Eliminar venta?")) {
-            let f = new FormData(); f.append('venta_id', id);
-            fetch('/eliminar_venta', {method: 'POST', body: f}).then(() => cargarVentas());
-        }
-    }
-
-    function resetSistema() {
-        if(confirm("¿Borrar TODO?")) {
-            fetch('/reset_sistema', {method: 'POST'}).then(() => location.reload());
-        }
-    }
-
-    document.getElementById('form_catalogo').onsubmit = function(e) {
-        e.preventDefault();
-        fetch('/agregar_producto_catalogo', {method: 'POST', body: new FormData(this)})
-        .then(() => { alert("Catálogo actualizado"); location.reload(); });
-    }
-
-    window.onload = cargarVentas;
 </script>
+
 </body>
 </html>
