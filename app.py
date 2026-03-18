@@ -138,8 +138,10 @@ def venta_rapida(producto: str = Form(...), cantidad: int = Form(...)):
             cur.close()
             conn.close()
 
+# Cambiá "unidad: bool" por "unidad: str" y hacé la conversión adentro:
 @app.post("/add_producto_catalogo")
-def add_catalogo(nombre: str = Form(...), p100: float = Form(...), p250: float = Form(...), p500: float = Form(...), p1000: float = Form(...), unidad: bool = Form(False)):
+def add_catalogo(nombre: str = Form(...), p100: float = Form(...), p250: float = Form(...), p500: float = Form(...), p1000: float = Form(...), unidad: str = Form("false")):
+    is_unidad = unidad.lower() == "true" # Conversión manual segura
     conn = None
     try:
         conn = get_db_connection()
@@ -148,7 +150,7 @@ def add_catalogo(nombre: str = Form(...), p100: float = Form(...), p250: float =
             INSERT INTO productos (nombre, p_100, p_250, p_500, p_1000, es_unitario) 
             VALUES (%s,%s,%s,%s,%s,%s) 
             ON CONFLICT (nombre) DO UPDATE SET p_100=EXCLUDED.p_100, p_250=EXCLUDED.p_250, p_500=EXCLUDED.p_500, p_1000=EXCLUDED.p_1000, es_unitario=EXCLUDED.es_unitario
-        """, (nombre, p100, p250, p500, p1000, unidad))
+        """, (nombre, p100, p250, p500, p1000, is_unidad))
         conn.commit()
         return {"ok": True}
     finally:
