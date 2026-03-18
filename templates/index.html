@@ -1,72 +1,178 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-<title>Natu PRO</title>
-<style>
-.low {color:red;font-weight:bold;}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Natu PRO | Gestión</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .card { @apply bg-white p-6 rounded-2xl shadow-sm border border-slate-100; }
+        .btn-green { @apply bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-xl transition-all; }
+        .low-stock { @apply text-red-600 font-bold animate-pulse; }
+    </style>
 </head>
-<body>
+<body class="p-4 md:p-8">
 
-<h1>Dashboard</h1>
-<p>Hoy: $<span id="hoy"></span></p>
-<p>Mes: $<span id="mes"></span></p>
+    <div class="max-w-6xl mx-auto space-y-6">
+        
+        <!-- Header & Stats -->
+        <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+            <h1 class="text-3xl font-bold text-slate-800">🌿 Natu <span class="text-green-600">PRO</span></h1>
+            <div class="flex gap-4">
+                <div class="card flex flex-col items-center min-w-[120px]">
+                    <span class="text-slate-500 text-sm">Ventas Hoy</span>
+                    <span id="stat_hoy" class="text-2xl font-bold text-green-600">$0</span>
+                </div>
+                <div class="card flex flex-col items-center min-w-[120px]">
+                    <span class="text-slate-500 text-sm">Operaciones</span>
+                    <span id="stat_n" class="text-2xl font-bold text-blue-600">0</span>
+                </div>
+            </div>
+        </div>
 
-<h2>Productos</h2>
-<select id="prod">
-{% for p in productos %}
-<option value="{{p[1]}}">
-{{p[1]}} - Stock: <span class="{{'low' if p[6]<500 else ''}}">{{p[6]}}g</span>
-</option>
-{% endfor %}
-</select>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <!-- Panel de Ventas -->
+            <div class="card space-y-4">
+                <h2 class="text-xl font-bold border-b pb-2 text-slate-700">🛒 Nueva Venta</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-slate-500">Producto</label>
+                        <select id="sel_prod" class="w-full p-3 rounded-xl border bg-slate-50 mt-1">
+                            {% for p in productos %}
+                            <option value="{{p.nombre}}">{{p.nombre}} (Stock: {{p.stock_gramos}}g)</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-500">Cantidad (Gramos o Unidades)</label>
+                        <input type="number" id="val_cant" placeholder="Ej: 250" class="w-full p-3 rounded-xl border bg-slate-50 mt-1">
+                    </div>
+                    <button onclick="realizarVenta()" class="btn-green w-full text-lg">Registrar Venta</button>
+                </div>
+            </div>
 
-<input id="gramos" placeholder="gramos">
+            <!-- Panel de Stock -->
+            <div class="card space-y-4">
+                <h2 class="text-xl font-bold border-b pb-2 text-slate-700">📦 Reponer / Catálogo</h2>
+                <div class="grid grid-cols-2 gap-2">
+                    <input id="cat_nom" placeholder="Producto" class="col-span-2 p-2 border rounded-lg text-sm">
+                    <input id="cat_100" type="number" placeholder="$100g" class="p-2 border rounded-lg text-sm">
+                    <input id="cat_250" type="number" placeholder="$250g" class="p-2 border rounded-lg text-sm">
+                    <input id="cat_500" type="number" placeholder="$500g" class="p-2 border rounded-lg text-sm">
+                    <input id="cat_1000" type="number" placeholder="$1kg o U" class="p-2 border rounded-lg text-sm">
+                    <button onclick="guardarCatalogo()" class="col-span-2 bg-slate-800 text-white p-2 rounded-lg text-sm font-bold">Guardar/Actualizar</button>
+                </div>
+                <hr>
+                <div class="flex gap-2">
+                    <input id="rep_cant" type="number" placeholder="Gramos a sumar" class="flex-1 p-2 border rounded-lg">
+                    <button onclick="reponer()" class="bg-blue-600 text-white px-4 rounded-lg font-bold">Sumar</button>
+                </div>
+            </div>
+        </div>
 
-<button onclick="add()">Agregar</button>
+        <!-- Historial -->
+        <div class="card overflow-hidden">
+            <h2 class="text-xl font-bold mb-4 text-slate-700">📜 Últimos Movimientos</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead class="bg-slate-50 text-slate-500 text-sm">
+                        <tr>
+                            <th class="p-4">Venta</th>
+                            <th class="p-4">Producto</th>
+                            <th class="p-4">Total</th>
+                            <th class="p-4">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lista_historial" class="divide-y">
+                        <!-- Se llena vía JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
-<h2>Reponer Stock</h2>
-<input id="rep_prod" placeholder="producto">
-<button onclick="rep(100)">+100g</button>
-<button onclick="rep(250)">+250g</button>
-<button onclick="rep(500)">+500g</button>
-<button onclick="rep(1000)">+1kg</button>
+    <script>
+        function updateStats() {
+            fetch('/stats').then(r=>r.json()).then(d=>{
+                document.getElementById('stat_hoy').innerText = `$${d.hoy}`;
+                document.getElementById('stat_n').innerText = d.ventas_n;
+            });
+        }
 
-<h2>Movimientos</h2>
-<ul id="movs"></ul>
+        function realizarVenta() {
+            let f = new FormData();
+            f.append('producto', document.getElementById('sel_prod').value);
+            f.append('cantidad', document.getElementById('val_cant').value);
+            fetch('/venta_rapida', {method:'POST', body:f}).then(r=>r.json()).then(d=>{
+                if(d.error) alert(d.error);
+                else location.reload();
+            });
+        }
 
-<script>
+        function loadHistorial() {
+            fetch('/historial').then(r=>r.json()).then(d=>{
+                let h = '';
+                d.historial.forEach(v=>{
+                    h += `
+                    <tr>
+                        <td class="p-4 text-xs text-slate-400">#${v.id}<br>${new Date(v.fecha).toLocaleTimeString()}</td>
+                        <td class="p-4 font-semibold">${v.producto} (${v.cantidad}g/u)</td>
+                        <td class="p-4 text-green-600 font-bold">$${v.total}</td>
+                        <td class="p-4 flex gap-2">
+                            <button onclick="imprimirTicket(${v.id}, '${v.producto}', ${v.cantidad}, ${v.total})" class="bg-slate-100 p-2 rounded-lg">🖨️</button>
+                            <button onclick="borrarVenta(${v.id})" class="bg-red-50 text-red-500 p-2 rounded-lg">🗑️</button>
+                        </td>
+                    </tr>`;
+                });
+                document.getElementById('lista_historial').innerHTML = h;
+            });
+        }
 
-fetch('/dashboard').then(r=>r.json()).then(d=>{
-document.getElementById('hoy').innerText=d.hoy
-document.getElementById('mes').innerText=d.mes
-})
+        function imprimirTicket(id, prod, cant, total) {
+            let win = window.open('', '', 'width=300,height=400');
+            win.document.write(`
+                <div style="font-family:monospace; width:200px; padding:10px; border:1px solid #000">
+                    <center><b>🌿 NATU 🌿</b><br>Naturalmente Rico</center><br>
+                    TICKET #${id}<br>
+                    --------------------<br>
+                    ${prod}<br>
+                    Cant: ${cant}g/u<br>
+                    TOTAL: $${total}<br>
+                    --------------------<br>
+                    ¡Gracias por elegirnos!
+                </div>
+            `);
+            win.print(); win.close();
+        }
 
-function add(){
-let f=new FormData()
-f.append('venta_id',1)
-f.append('producto',document.getElementById('prod').value)
-f.append('gramos',document.getElementById('gramos').value)
+        function guardarCatalogo() {
+            let f = new FormData();
+            f.append('nombre', document.getElementById('cat_nom').value);
+            f.append('p100', document.getElementById('cat_100').value);
+            f.append('p250', document.getElementById('cat_250').value);
+            f.append('p500', document.getElementById('cat_500').value);
+            f.append('p1000', document.getElementById('cat_1000').value);
+            fetch('/add_producto_catalogo', {method:'POST', body:f}).then(()=>location.reload());
+        }
 
-fetch('/agregar_producto',{method:'POST',body:f})
-}
+        function reponer() {
+            let f = new FormData();
+            f.append('producto', document.getElementById('sel_prod').value);
+            f.append('cantidad', document.getElementById('rep_cant').value);
+            fetch('/reponer_stock', {method:'POST', body:f}).then(()=>location.reload());
+        }
 
-function rep(c){
-let f=new FormData()
-f.append('producto',document.getElementById('rep_prod').value)
-f.append('cantidad',c)
-fetch('/reponer_stock',{method:'POST',body:f}).then(()=>location.reload())
-}
+        function borrarVenta(id) {
+            if(!confirm("¿Borrar venta y devolver stock?")) return;
+            let f = new FormData(); f.append('id', id);
+            fetch('/borrar_venta', {method:'POST', body:f}).then(()=>location.reload());
+        }
 
-fetch('/movimientos').then(r=>r.json()).then(d=>{
-let html=''
-d.movimientos.forEach(m=>{
-html+=`<li>${m[0]} ${m[1]}g (${m[2]})</li>`
-})
-document.getElementById('movs').innerHTML=html
-})
-
-</script>
-
+        updateStats();
+        loadHistorial();
+    </script>
 </body>
 </html>
