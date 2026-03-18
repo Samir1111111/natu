@@ -79,48 +79,55 @@ def procesar_venta(carrito: str = Form(...)):
     cur = conn.cursor()
     total_venta = 0
     try:
-        # 1. Crear la cabecera de la venta
+        # 1. Crear la venta con total 0 inicialmente
         cur.execute("INSERT INTO ventas (total) VALUES (0) RETURNING id")
         v_id = cur.fetchone()['id']
         
         for item in data:
+            # Buscamos el producto por nombre
             cur.execute("SELECT * FROM productos WHERE nombre = %s", (item['nombre'],))
             p = cur.fetchone()
             if not p: continue
             
             cant = int(item['cantidad'])
-            sub = 0
+            precio_aplicado = 0
             
-            # 2. Lógica de precio según cantidad exacta
+            # LÓGICA DE PRECIOS SEGÚN ESCALONES
             if p['es_unitario']:
-                sub = p['p_1000'] * cant # p_1000 se usa como precio unitario
+                # Si es unitario, p_1000 es el precio por unidad
+                precio_aplicado = p['p_1000'] * cant
             else:
-                # Elige el precio según el escalón
-                if cant <= 100: sub = p['p_100']
-                elif cant <= 250: sub = p['p_250']
-                elif cant <= 500: sub = p['p_500']
+                # Si es por peso
+                if cant <= 100:
+                    precio_aplicado = p['p_100']
+                elif cant <= 250:
+                    precio_aplicado = p['p_250']
+                elif cant <= 500:
+                    precio_aplicado = p['p_500']
                 else:
-                    # Para más de 500g, calculamos proporcional al precio de 1kg (p_1000)
-                    sub = (p['p_1000'] / 1000) * cant
+                    # Si es 1kg o más, calculamos el proporcional basado en p_1000
+                    # Ejemplo: si 1000g son $1000, 1500g son $1500
+                    precio_aplicado = (p['p_1000'] / 1000) * cant
             
-            total_venta += sub
+            total_venta += precio_aplicado
             
-            # 3. Registrar detalle y descontar stock
+            # 2. Insertar en detalle_venta
             cur.execute("""
                 INSERT INTO detalle_venta (venta_id, producto, cantidad, subtotal) 
-                VALUES (%s,%s,%s,%s)
-            """, (v_id, p['nombre'], cant, sub))
+                VALUES (%s, %s, %s, %s)
+            """, (v_id, p['nombre'], cant, precio_aplicado))
             
+            # 3. Descontar Stock
             cur.execute("UPDATE productos SET stock_gramos = stock_gramos - %s WHERE nombre = %s", (cant, p['nombre']))
             
-        # 4. Actualizar el total real de la venta
+        # 4. ACTUALIZACIÓN FINAL DEL TOTAL (Crítico para que no salga $0)
         cur.execute("UPDATE ventas SET total = %s WHERE id = %s", (total_venta, v_id))
+        
         conn.commit()
-        return {"id": v_id, "total": total_venta}
+        return {"status": "ok", "id": v_id, "total": total_venta}
     except Exception as e:
         conn.rollback()
-        print(f"Error en venta: {e}")
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"error": str(e)}, status_code=500)
     finally:
         conn.close()
 
@@ -131,7 +138,6 @@ def ver_historial():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        # Traemos el ID, la fecha formateada y los productos con sus unidades
         cur.execute("""
             SELECT v.id, 
                    TO_CHAR(v.fecha, 'DD/MM/YY HH24:MI') as fecha_formateada, 
@@ -140,7 +146,7 @@ def ver_historial():
             FROM ventas v 
             LEFT JOIN detalle_venta d ON v.id = d.venta_id
             LEFT JOIN productos p ON d.producto = p.nombre
-            GROUP BY v.id 
+            GROUP BY v.id, v.fecha, v.total
             ORDER BY v.fecha DESC 
             LIMIT 50
         """)
