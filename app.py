@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
+import json # Importante para procesar el carrito
 
 app = FastAPI()
 
@@ -138,25 +139,69 @@ def venta_rapida(producto: str = Form(...), cantidad: int = Form(...)):
             cur.close()
             conn.close()
 
-# Cambiá "unidad: bool" por "unidad: str" y hacé la conversión adentro:
+
 @app.post("/add_producto_catalogo")
 def add_catalogo(nombre: str = Form(...), p100: float = Form(...), p250: float = Form(...), p500: float = Form(...), p1000: float = Form(...), unidad: str = Form("false")):
-    is_unidad = unidad.lower() == "true" # Conversión manual segura
+    is_unidad = unidad.lower() == "true"
     conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute("""
-            INSERT INTO productos (nombre, p_100, p_250, p_500, p_1000, es_unitario) 
-            VALUES (%s,%s,%s,%s,%s,%s) 
-            ON CONFLICT (nombre) DO UPDATE SET p_100=EXCLUDED.p_100, p_250=EXCLUDED.p_250, p_500=EXCLUDED.p_500, p_1000=EXCLUDED.p_1000, es_unitario=EXCLUDED.es_unitario
+            INSERT INTO productos (nombre, p_100, p_250, p_500, p_1000, es_unitario, stock_gramos) 
+            VALUES (%s,%s,%s,%s,%s,%s, 0) 
+            ON CONFLICT (nombre) DO UPDATE SET 
+                p_100=EXCLUDED.p_100, p_250=EXCLUDED.p_250, 
+                p_500=EXCLUDED.p_500, p_1000=EXCLUDED.p_1000, es_unitario=EXCLUDED.es_unitario
         """, (nombre, p100, p250, p500, p1000, is_unidad))
         conn.commit()
         return {"ok": True}
     finally:
-        if conn:
-            cur.close()
-            conn.close()
+        if conn: conn.close()
+
+@app.post("/registrar_venta_carrito")
+def registrar_venta(carrito: str = Form(...)):
+    items = json.loads(carrito) # Recibe la lista de productos del carrito
+    total_venta = 0
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Crear la cabecera de la venta
+        cur.execute("INSERT INTO ventas (total) VALUES (0) RETURNING id")
+        venta_id = cur.fetchone()['id']
+        
+        for item in items:
+            nombre = item['producto']
+            cantidad = int(item['cantidad'])
+            
+            cur.execute("SELECT * FROM productos WHERE nombre=%s", (nombre,))
+            p = cur.fetchone()
+            
+            # Calcular precio escalonado
+            if p['es_unitario']: subtotal = p['p_1000'] * cantidad
+            else:
+                if cantidad <= 100: subtotal = p['p_100']
+                elif cantidad <= 250: subtotal = p['p_250']
+                elif cantidad <= 500: subtotal = p['p_500']
+                else: subtotal = p['p_1000']
+            
+            total_venta += subtotal
+            
+            # Insertar detalle y descontar stock
+            cur.execute("INSERT INTO detalle_venta (venta_id, producto, cantidad, subtotal) VALUES (%s,%s,%s,%s)", 
+                        (venta_id, nombre, cantidad, subtotal))
+            cur.execute("UPDATE productos SET stock_gramos = stock_gramos - %s WHERE nombre = %s", (cantidad, nombre))
+        
+        # Actualizar total final
+        cur.execute("UPDATE ventas SET total = %s WHERE id = %s", (total_venta, venta_id))
+        conn.commit()
+        return {"ok": True}
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse({"error": str(e)}, status_code=400)
+    finally:
+        conn.close()
 
 @app.post("/reponer_stock")
 def reponer(producto: str = Form(...), cantidad: int = Form(...)):
