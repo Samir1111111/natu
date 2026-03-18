@@ -86,30 +86,40 @@ def procesar_venta(carrito: str = Form(...)):
         for item in data:
             cur.execute("SELECT * FROM productos WHERE nombre = %s", (item['nombre'],))
             p = cur.fetchone()
-            cant = int(item['cantidad'])
+            if not p: continue
             
-            # 2. Lógica de precio escalonado
-            if p['es_unitario']: 
-                sub = p['p_1000'] * cant
+            cant = int(item['cantidad'])
+            sub = 0
+            
+            # 2. Lógica de precio según cantidad exacta
+            if p['es_unitario']:
+                sub = p['p_1000'] * cant # p_1000 se usa como precio unitario
             else:
+                # Elige el precio según el escalón
                 if cant <= 100: sub = p['p_100']
                 elif cant <= 250: sub = p['p_250']
                 elif cant <= 500: sub = p['p_500']
-                else: sub = p['p_1000']
+                else:
+                    # Para más de 500g, calculamos proporcional al precio de 1kg (p_1000)
+                    sub = (p['p_1000'] / 1000) * cant
             
             total_venta += sub
             
-            # 3. Insertar detalle y descontar stock_gramos
-            cur.execute("INSERT INTO detalle_venta (venta_id, producto, cantidad, subtotal) VALUES (%s,%s,%s,%s)", 
-                        (v_id, p['nombre'], cant, sub))
+            # 3. Registrar detalle y descontar stock
+            cur.execute("""
+                INSERT INTO detalle_venta (venta_id, producto, cantidad, subtotal) 
+                VALUES (%s,%s,%s,%s)
+            """, (v_id, p['nombre'], cant, sub))
+            
             cur.execute("UPDATE productos SET stock_gramos = stock_gramos - %s WHERE nombre = %s", (cant, p['nombre']))
             
-        # 4. Actualizar total final de la venta
+        # 4. Actualizar el total real de la venta
         cur.execute("UPDATE ventas SET total = %s WHERE id = %s", (total_venta, v_id))
         conn.commit()
-        return {"id": v_id}
+        return {"id": v_id, "total": total_venta}
     except Exception as e:
         conn.rollback()
+        print(f"Error en venta: {e}")
         return JSONResponse({"error": str(e)}, status_code=400)
     finally:
         conn.close()
