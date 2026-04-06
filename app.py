@@ -15,10 +15,6 @@ def get_db_connection():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 
-for p in prods:
-    if isinstance(p['nombre'], dict):
-        p['nombre'] = p['nombre'].get('nombre') or str(p['nombre'])
-
 templates = Jinja2Templates(directory="templates")
 
 # --- RUTA PRINCIPAL ---
