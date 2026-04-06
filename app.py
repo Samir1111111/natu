@@ -7,17 +7,15 @@ from fastapi.templating import Jinja2Templates
 
 app = FastAPI()
 
-# URL con puerto 6543 para evitar bloqueos de conexión
+# URL de conexión
 DATABASE_URL = "postgresql://postgres.tcdkapcrcntrawckkaex:Samirphite2006@aws-1-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require"
 
 def get_db_connection():
-    # Usamos RealDictCursor para que los resultados sean como diccionarios p['nombre']
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
-
 
 templates = Jinja2Templates(directory="templates")
 
-# --- RUTA PRINCIPAL ---
+# --- RUTA PRINCIPAL (CORREGIDA) ---
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     conn = None
@@ -26,10 +24,16 @@ def index(request: Request):
         cur = conn.cursor()
         cur.execute("SELECT * FROM productos ORDER BY nombre ASC")
         prods = cur.fetchall()
-        return templates.TemplateResponse("index.html", {"request": request, "productos": prods})
+        # LA CORRECCIÓN ESTÁ AQUÍ: Pasamos el contexto de forma explícita
+        return templates.TemplateResponse(
+            request=request, 
+            name="index.html", 
+            context={"productos": prods}
+        )
     finally:
         if conn: conn.close()
 
+# --- GESTIÓN DE CATÁLOGO ---
 @app.post("/catalogo")
 def guardar_catalogo(
     nombre: str = Form(...), 
@@ -72,7 +76,7 @@ def reponer_stock(producto: str = Form(...), cantidad: int = Form(...)):
     finally:
         if conn: conn.close()
 
-# --- PROCESAR VENTA (CARRITO) ---
+# --- PROCESAR VENTA ---
 @app.post("/venta")
 def procesar_venta(carrito: str = Form(...)):
     data = json.loads(carrito)
@@ -80,12 +84,10 @@ def procesar_venta(carrito: str = Form(...)):
     cur = conn.cursor()
     total_venta = 0
     try:
-        # 1. Crear la venta con total 0 inicialmente
         cur.execute("INSERT INTO ventas (total) VALUES (0) RETURNING id")
         v_id = cur.fetchone()['id']
         
         for item in data:
-            # Buscamos el producto por nombre
             cur.execute("SELECT * FROM productos WHERE nombre = %s", (item['nombre'],))
             p = cur.fetchone()
             if not p: continue
@@ -93,37 +95,24 @@ def procesar_venta(carrito: str = Form(...)):
             cant = int(item['cantidad'])
             precio_aplicado = 0
             
-            # LÓGICA DE PRECIOS SEGÚN ESCALONES
             if p['es_unitario']:
-                # Si es unitario, p_1000 es el precio por unidad
                 precio_aplicado = p['p_1000'] * cant
             else:
-                # Si es por peso
-                if cant <= 100:
-                    precio_aplicado = p['p_100']
-                elif cant <= 250:
-                    precio_aplicado = p['p_250']
-                elif cant <= 500:
-                    precio_aplicado = p['p_500']
-                else:
-                    # Si es 1kg o más, calculamos el proporcional basado en p_1000
-                    # Ejemplo: si 1000g son $1000, 1500g son $1500
-                    precio_aplicado = (p['p_1000'] / 1000) * cant
+                if cant <= 100: precio_aplicado = p['p_100']
+                elif cant <= 250: precio_aplicado = p['p_250']
+                elif cant <= 500: precio_aplicado = p['p_500']
+                else: precio_aplicado = (p['p_1000'] / 1000) * cant
             
             total_venta += precio_aplicado
             
-            # 2. Insertar en detalle_venta
             cur.execute("""
                 INSERT INTO detalle_venta (venta_id, producto, cantidad, subtotal) 
                 VALUES (%s, %s, %s, %s)
             """, (v_id, p['nombre'], cant, precio_aplicado))
             
-            # 3. Descontar Stock
             cur.execute("UPDATE productos SET stock_gramos = stock_gramos - %s WHERE nombre = %s", (cant, p['nombre']))
             
-        # 4. ACTUALIZACIÓN FINAL DEL TOTAL (Crítico para que no salga $0)
         cur.execute("UPDATE ventas SET total = %s WHERE id = %s", (total_venta, v_id))
-        
         conn.commit()
         return {"status": "ok", "id": v_id, "total": total_venta}
     except Exception as e:
@@ -162,41 +151,36 @@ def borrar_venta(id: int = Form(...)):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        # 1. Devolver stock antes de borrar
         cur.execute("SELECT producto, cantidad FROM detalle_venta WHERE venta_id = %s", (id,))
         detalles = cur.fetchall()
         for d in detalles:
             cur.execute("UPDATE productos SET stock_gramos = stock_gramos + %s WHERE nombre = %s", (d['cantidad'], d['producto']))
         
-        # 2. Borrar la venta (el detalle se borra por CASCADE)
         cur.execute("DELETE FROM ventas WHERE id = %s", (id,))
         conn.commit()
         return {"status": "ok"}
     finally:
         if conn: conn.close()
 
-    # --- AGREGAR ESTAS RUTAS AL APP.PY ---
-
+# --- ESTADÍSTICAS DEL DÍA ---
 @app.get("/stats_hoy")
 def stats_hoy():
     conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        # Suma el total de las ventas cuya fecha sea hoy
         cur.execute("SELECT COALESCE(SUM(total), 0) as total_dia, COUNT(*) as cantidad_ventas FROM ventas WHERE DATE(fecha) = CURRENT_DATE")
         return cur.fetchone()
     finally:
         if conn: conn.close()
 
+# --- BORRAR PRODUCTO ---
 @app.post("/borrar_producto")
 def borrar_producto(nombre: str = Form(...)):
     conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        # Borra el producto (esto fallará si tiene ventas asociadas a menos que uses CASCADE o limpies historial)
-        # Por seguridad, el SQL que ejecutamos antes ya maneja las relaciones.
         cur.execute("DELETE FROM productos WHERE nombre = %s", (nombre,))
         conn.commit()
         return {"status": "ok"}
