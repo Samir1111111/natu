@@ -12,7 +12,7 @@ app = FastAPI()
 # CONFIGURACIÓN DE BASE DE DATOS
 # ============================================================
 
-DATABASE_URL = "TU_DATABASE_URL"
+DATABASE_URL = "postgresql://postgres.tcdkapcrcntrawckkaex:Samirphite2006@aws-1-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require"
 
 def get_db_connection():
     return psycopg2.connect(
