@@ -1,3 +1,4 @@
+```python
 import json
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -7,182 +8,627 @@ from fastapi.templating import Jinja2Templates
 
 app = FastAPI()
 
-# URL de conexión
-DATABASE_URL = "postgresql://postgres.tcdkapcrcntrawckkaex:Samirphite2006@aws-1-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require"
+# ============================================================
+# CONFIGURACIÓN DE BASE DE DATOS
+# ============================================================
+
+DATABASE_URL = "TU_DATABASE_URL"
 
 def get_db_connection():
-    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+    return psycopg2.connect(
+        DATABASE_URL,
+        cursor_factory=RealDictCursor
+    )
 
 templates = Jinja2Templates(directory="templates")
 
-# --- RUTA PRINCIPAL (CORREGIDA) ---
+
+# ============================================================
+# PÁGINA PRINCIPAL
+# ============================================================
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     conn = None
+
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("SELECT * FROM productos ORDER BY nombre ASC")
-        prods = cur.fetchall()
-        # LA CORRECCIÓN ESTÁ AQUÍ: Pasamos el contexto de forma explícita
-        return templates.TemplateResponse(
-            request=request, 
-            name="index.html", 
-            context={"productos": prods}
-        )
-    finally:
-        if conn: conn.close()
 
-# --- GESTIÓN DE CATÁLOGO ---
+        cur.execute("""
+            SELECT *
+            FROM productos
+            ORDER BY nombre ASC
+        """)
+
+        productos = cur.fetchall()
+
+        return templates.TemplateResponse(
+            request=request,
+            name="index.html",
+            context={
+                "productos": productos
+            }
+        )
+
+    finally:
+        if conn:
+            conn.close()
+
+
+# ============================================================
+# CATÁLOGO
+#
+# IMPORTANTE:
+# p_1000 se utiliza como PRECIO POR KG.
+#
+# No eliminamos p_100, p_250 ni p_500 de la base de datos.
+# Simplemente dejamos de utilizarlos para calcular ventas.
+# ============================================================
+
 @app.post("/catalogo")
 def guardar_catalogo(
-    nombre: str = Form(...), 
-    p100: float = Form(...), 
-    p250: float = Form(...), 
-    p500: float = Form(...), 
-    p1000: float = Form(...), 
+    nombre: str = Form(...),
+    p1000: float = Form(...),
     unidad: str = Form("false")
 ):
+    nombre = nombre.strip()
     is_uni = unidad.lower() == "true"
+
+    if not nombre:
+        return JSONResponse(
+            {"error": "El nombre del producto es obligatorio"},
+            status_code=400
+        )
+
+    if p1000 < 0:
+        return JSONResponse(
+            {"error": "El precio no puede ser negativo"},
+            status_code=400
+        )
+
     conn = None
+
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+
+        # Solamente actualizamos p_1000.
+        # Las demás columnas antiguas permanecen intactas.
         cur.execute("""
-            INSERT INTO productos (nombre, p_100, p_250, p_500, p_1000, es_unitario)
-            VALUES (%s,%s,%s,%s,%s,%s)
-            ON CONFLICT (nombre) DO UPDATE SET 
-            p_100=EXCLUDED.p_100, 
-            p_250=EXCLUDED.p_250, 
-            p_500=EXCLUDED.p_500, 
-            p_1000=EXCLUDED.p_1000, 
-            es_unitario=EXCLUDED.es_unitario
-        """, (nombre.strip(), p100, p250, p500, p1000, is_uni))
-        conn.commit()
-        return {"status": "ok"}
-    finally:
-        if conn: conn.close()
+            INSERT INTO productos
+                (nombre, p_1000, es_unitario)
+            VALUES
+                (%s, %s, %s)
 
-# --- REPOSICIÓN DE STOCK ---
+            ON CONFLICT (nombre)
+            DO UPDATE SET
+                p_1000 = EXCLUDED.p_1000,
+                es_unitario = EXCLUDED.es_unitario
+        """, (
+            nombre,
+            p1000,
+            is_uni
+        ))
+
+        conn.commit()
+
+        return {
+            "status": "ok"
+        }
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+
+        return JSONResponse(
+            {"error": str(e)},
+            status_code=500
+        )
+
+    finally:
+        if conn:
+            conn.close()
+
+
+# ============================================================
+# REPONER STOCK
+# ============================================================
+
 @app.post("/reponer")
-def reponer_stock(producto: str = Form(...), cantidad: int = Form(...)):
+def reponer_stock(
+    producto: str = Form(...),
+    cantidad: int = Form(...)
+):
+    if cantidad <= 0:
+        return JSONResponse(
+            {"error": "La cantidad debe ser mayor a 0"},
+            status_code=400
+        )
+
     conn = None
+
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("UPDATE productos SET stock_gramos = stock_gramos + %s WHERE nombre = %s", (cantidad, producto))
-        conn.commit()
-        return {"status": "ok"}
-    finally:
-        if conn: conn.close()
 
-# --- PROCESAR VENTA ---
+        cur.execute("""
+            UPDATE productos
+            SET stock_gramos = stock_gramos + %s
+            WHERE nombre = %s
+        """, (
+            cantidad,
+            producto
+        ))
+
+        if cur.rowcount == 0:
+            return JSONResponse(
+                {"error": "Producto no encontrado"},
+                status_code=404
+            )
+
+        conn.commit()
+
+        return {
+            "status": "ok"
+        }
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+
+        return JSONResponse(
+            {"error": str(e)},
+            status_code=500
+        )
+
+    finally:
+        if conn:
+            conn.close()
+
+
+# ============================================================
+# PROCESAR VENTA
+# ============================================================
+
 @app.post("/venta")
 def procesar_venta(carrito: str = Form(...)):
-    data = json.loads(carrito)
-    conn = get_db_connection()
-    cur = conn.cursor()
-    total_venta = 0
     try:
-        cur.execute("INSERT INTO ventas (total) VALUES (0) RETURNING id")
-        v_id = cur.fetchone()['id']
-        
-        for item in data:
-            cur.execute("SELECT * FROM productos WHERE nombre = %s", (item['nombre'],))
-            p = cur.fetchone()
-            if not p: continue
-            
-            cant = int(item['cantidad'])
-            precio_aplicado = 0
-            
-            if p['es_unitario']:
-                precio_aplicado = p['p_1000'] * cant
-            else:
-                if cant <= 100: precio_aplicado = p['p_100']
-                elif cant <= 250: precio_aplicado = p['p_250']
-                elif cant <= 500: precio_aplicado = p['p_500']
-                else: precio_aplicado = (p['p_1000'] / 1000) * cant
-            
-            total_venta += precio_aplicado
-            
-            cur.execute("""
-                INSERT INTO detalle_venta (venta_id, producto, cantidad, subtotal) 
-                VALUES (%s, %s, %s, %s)
-            """, (v_id, p['nombre'], cant, precio_aplicado))
-            
-            cur.execute("UPDATE productos SET stock_gramos = stock_gramos - %s WHERE nombre = %s", (cant, p['nombre']))
-            
-        cur.execute("UPDATE ventas SET total = %s WHERE id = %s", (total_venta, v_id))
-        conn.commit()
-        return {"status": "ok", "id": v_id, "total": total_venta}
-    except Exception as e:
-        conn.rollback()
-        return JSONResponse({"error": str(e)}, status_code=500)
-    finally:
-        conn.close()
+        data = json.loads(carrito)
+    except json.JSONDecodeError:
+        return JSONResponse(
+            {"error": "Carrito inválido"},
+            status_code=400
+        )
 
-# --- VER HISTORIAL ---
+    if not isinstance(data, list) or len(data) == 0:
+        return JSONResponse(
+            {"error": "El carrito está vacío"},
+            status_code=400
+        )
+
+    conn = None
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Crear venta
+        cur.execute("""
+            INSERT INTO ventas (total)
+            VALUES (0)
+            RETURNING id
+        """)
+
+        v_id = cur.fetchone()["id"]
+
+        total_venta = 0
+
+        for item in data:
+
+            nombre = str(item.get("nombre", "")).strip()
+
+            if not nombre:
+                continue
+
+            try:
+                cantidad = int(item.get("cantidad", 0))
+            except (ValueError, TypeError):
+                continue
+
+            if cantidad <= 0:
+                continue
+
+            # Buscar producto
+            cur.execute("""
+                SELECT *
+                FROM productos
+                WHERE nombre = %s
+            """, (
+                nombre,
+            ))
+
+            producto = cur.fetchone()
+
+            if not producto:
+                continue
+
+            precio_kg = float(producto["p_1000"] or 0)
+            es_unitario = bool(producto["es_unitario"])
+
+            # ==================================================
+            # PRODUCTOS POR UNIDAD
+            #
+            # p_1000 representa el precio de UNA unidad.
+            # ==================================================
+
+            if es_unitario:
+
+                precio_aplicado = precio_kg * cantidad
+
+                stock_actual = producto["stock_gramos"] or 0
+
+                if stock_actual < cantidad:
+                    raise Exception(
+                        f"Stock insuficiente de {nombre}. "
+                        f"Disponible: {stock_actual} unidades."
+                    )
+
+            # ==================================================
+            # PRODUCTOS POR PESO
+            #
+            # p_1000 representa el precio por KG.
+            #
+            # Ejemplo:
+            # $4000/kg × 250g / 1000 = $1000
+            # ==================================================
+
+            else:
+
+                precio_aplicado = (
+                    precio_kg * cantidad
+                ) / 1000
+
+                stock_actual = producto["stock_gramos"] or 0
+
+                if stock_actual < cantidad:
+                    raise Exception(
+                        f"Stock insuficiente de {nombre}. "
+                        f"Disponible: {stock_actual}g."
+                    )
+
+            total_venta += precio_aplicado
+
+            # Guardamos el precio aplicado en el momento
+            # de la venta. Esto hace que las ventas históricas
+            # no cambien si luego modificamos el precio del catálogo.
+            cur.execute("""
+                INSERT INTO detalle_venta
+                    (venta_id, producto, cantidad, subtotal)
+                VALUES
+                    (%s, %s, %s, %s)
+            """, (
+                v_id,
+                producto["nombre"],
+                cantidad,
+                precio_aplicado
+            ))
+
+            # Descontar stock
+            cur.execute("""
+                UPDATE productos
+                SET stock_gramos = stock_gramos - %s
+                WHERE nombre = %s
+            """, (
+                cantidad,
+                producto["nombre"]
+            ))
+
+        # Actualizar total de la venta
+        cur.execute("""
+            UPDATE ventas
+            SET total = %s
+            WHERE id = %s
+        """, (
+            total_venta,
+            v_id
+        ))
+
+        conn.commit()
+
+        return {
+            "status": "ok",
+            "id": v_id,
+            "total": round(total_venta, 2)
+        }
+
+    except Exception as e:
+
+        if conn:
+            conn.rollback()
+
+        return JSONResponse(
+            {
+                "error": str(e)
+            },
+            status_code=500
+        )
+
+    finally:
+
+        if conn:
+            conn.close()
+
+
+# ============================================================
+# HISTORIAL
+# ============================================================
+
 @app.get("/historial")
 def ver_historial():
     conn = None
+
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+
         cur.execute("""
-            SELECT v.id, 
-                   TO_CHAR(v.fecha, 'DD/MM/YY HH24:MI') as fecha_formateada, 
-                   v.total, 
-                   string_agg(d.producto || ' (' || d.cantidad || (CASE WHEN p.es_unitario THEN 'u' ELSE 'g' END) || ')', ', ') as items
-            FROM ventas v 
-            LEFT JOIN detalle_venta d ON v.id = d.venta_id
-            LEFT JOIN productos p ON d.producto = p.nombre
-            GROUP BY v.id, v.fecha, v.total
-            ORDER BY v.fecha DESC 
+            SELECT
+                v.id,
+
+                TO_CHAR(
+                    v.fecha,
+                    'DD/MM/YY HH24:MI'
+                ) AS fecha_formateada,
+
+                v.total,
+
+                string_agg(
+                    d.producto
+                    || ' ('
+                    || d.cantidad
+                    || (
+                        CASE
+                            WHEN p.es_unitario
+                            THEN 'u'
+                            ELSE 'g'
+                        END
+                    )
+                    || ')',
+                    ', '
+                ) AS items
+
+            FROM ventas v
+
+            LEFT JOIN detalle_venta d
+                ON v.id = d.venta_id
+
+            LEFT JOIN productos p
+                ON d.producto = p.nombre
+
+            GROUP BY
+                v.id,
+                v.fecha,
+                v.total
+
+            ORDER BY
+                v.fecha DESC
+
             LIMIT 50
         """)
-        return cur.fetchall()
-    finally:
-        if conn: conn.close()
 
-# --- BORRAR VENTA ---
+        ventas = cur.fetchall()
+
+        return ventas
+
+    finally:
+
+        if conn:
+            conn.close()
+
+
+# ============================================================
+# OBTENER DETALLE DE UNA VENTA
+# ============================================================
+
+@app.get("/venta/{venta_id}")
+def obtener_venta(venta_id: int):
+    conn = None
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT
+                id,
+                fecha,
+                total
+            FROM ventas
+            WHERE id = %s
+        """, (
+            venta_id,
+        ))
+
+        venta = cur.fetchone()
+
+        if not venta:
+            return JSONResponse(
+                {"error": "Venta no encontrada"},
+                status_code=404
+            )
+
+        cur.execute("""
+            SELECT
+                d.producto,
+                d.cantidad,
+                d.subtotal,
+                p.es_unitario
+            FROM detalle_venta d
+            LEFT JOIN productos p
+                ON d.producto = p.nombre
+            WHERE d.venta_id = %s
+            ORDER BY d.id ASC
+        """, (
+            venta_id,
+        ))
+
+        detalles = cur.fetchall()
+
+        return {
+            "venta": venta,
+            "detalles": detalles
+        }
+
+    finally:
+
+        if conn:
+            conn.close()
+
+
+# ============================================================
+# BORRAR VENTA
+# ============================================================
+
 @app.post("/borrar_venta")
 def borrar_venta(id: int = Form(...)):
     conn = None
+
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("SELECT producto, cantidad FROM detalle_venta WHERE venta_id = %s", (id,))
-        detalles = cur.fetchall()
-        for d in detalles:
-            cur.execute("UPDATE productos SET stock_gramos = stock_gramos + %s WHERE nombre = %s", (d['cantidad'], d['producto']))
-        
-        cur.execute("DELETE FROM ventas WHERE id = %s", (id,))
-        conn.commit()
-        return {"status": "ok"}
-    finally:
-        if conn: conn.close()
 
-# --- ESTADÍSTICAS DEL DÍA ---
+        # Recuperar productos vendidos
+        cur.execute("""
+            SELECT
+                producto,
+                cantidad
+            FROM detalle_venta
+            WHERE venta_id = %s
+        """, (
+            id,
+        ))
+
+        detalles = cur.fetchall()
+
+        # Devolver stock
+        for detalle in detalles:
+
+            cur.execute("""
+                UPDATE productos
+                SET stock_gramos =
+                    stock_gramos + %s
+                WHERE nombre = %s
+            """, (
+                detalle["cantidad"],
+                detalle["producto"]
+            ))
+
+        # Borrar detalles explícitamente
+        cur.execute("""
+            DELETE FROM detalle_venta
+            WHERE venta_id = %s
+        """, (
+            id,
+        ))
+
+        # Borrar venta
+        cur.execute("""
+            DELETE FROM ventas
+            WHERE id = %s
+        """, (
+            id,
+        ))
+
+        conn.commit()
+
+        return {
+            "status": "ok"
+        }
+
+    except Exception as e:
+
+        if conn:
+            conn.rollback()
+
+        return JSONResponse(
+            {"error": str(e)},
+            status_code=500
+        )
+
+    finally:
+
+        if conn:
+            conn.close()
+
+
+# ============================================================
+# ESTADÍSTICAS DEL DÍA
+# ============================================================
+
 @app.get("/stats_hoy")
 def stats_hoy():
     conn = None
+
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("SELECT COALESCE(SUM(total), 0) as total_dia, COUNT(*) as cantidad_ventas FROM ventas WHERE DATE(fecha) = CURRENT_DATE")
-        return cur.fetchone()
-    finally:
-        if conn: conn.close()
 
-# --- BORRAR PRODUCTO ---
+        cur.execute("""
+            SELECT
+                COALESCE(SUM(total), 0) AS total_dia,
+                COUNT(*) AS cantidad_ventas
+
+            FROM ventas
+
+            WHERE DATE(fecha) = CURRENT_DATE
+        """)
+
+        return cur.fetchone()
+
+    finally:
+
+        if conn:
+            conn.close()
+
+
+# ============================================================
+# BORRAR PRODUCTO
+# ============================================================
+
 @app.post("/borrar_producto")
 def borrar_producto(nombre: str = Form(...)):
     conn = None
+
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("DELETE FROM productos WHERE nombre = %s", (nombre,))
+
+        cur.execute("""
+            DELETE FROM productos
+            WHERE nombre = %s
+        """, (
+            nombre,
+        ))
+
         conn.commit()
-        return {"status": "ok"}
+
+        return {
+            "status": "ok"
+        }
+
+    except Exception as e:
+
+        if conn:
+            conn.rollback()
+
+        return JSONResponse(
+            {"error": str(e)},
+            status_code=500
+        )
+
     finally:
-        if conn: conn.close()
+
+        if conn:
+            conn.close()
+```
